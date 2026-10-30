@@ -39,9 +39,11 @@ export function getStreamTvDeviceId() {
 }
 
 function getClientPlatform() {
-  const standalone = globalThis.matchMedia?.("(display-mode: standalone)")?.matches
-    || globalThis.navigator?.standalone === true;
-  return standalone ? "pwa" : "web";
+  // A browser tab and its installed PWA share this application's storage and
+  // are the same physical device. Keep one stable identity for both modes;
+  // otherwise reopening the same account in the other mode makes the server
+  // interpret the refresh as a device mismatch and revoke the session.
+  return "web";
 }
 
 function headers({ token = "", json = false } = {}) {
