@@ -128,7 +128,19 @@ class AuthManagerClass {
       return;
     }
 
-    await this.establishAuthenticatedSession();
+    try {
+      await this.establishAuthenticatedSession();
+    } catch (error) {
+      // A JWT can still look current locally after the server has revoked its
+      // session. That is an ordinary signed-out state, not an application boot
+      // failure that should strand the user on a diagnostic screen.
+      if (Number(error?.status || 0) === 401) {
+        SessionStore.clear();
+        this.setState(AuthState.SIGNED_OUT);
+        return;
+      }
+      throw error;
+    }
   }
 
   getAuthState() {
@@ -410,7 +422,13 @@ class AuthManagerClass {
       } catch (error) {
         if (Number(error?.status || 0) === 401) {
           const refreshed = await this.refreshSessionIfNeeded({ force: true });
-          if (refreshed) data = await streamTvMe(SessionStore.accessToken);
+          if (refreshed) {
+            data = await streamTvMe(SessionStore.accessToken);
+          } else {
+            const sessionError = new Error("StreamTV session expired");
+            sessionError.status = 401;
+            throw sessionError;
+          }
         } else {
           throw error;
         }
