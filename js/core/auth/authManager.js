@@ -66,7 +66,9 @@ function getStoredAccountOwnerMarker() {
 }
 
 function createOwnerResponseError(response, message) {
-  const error = new Error(message || `Unable to resolve sync owner (${response?.status || "unknown"})`);
+  const error = new Error(
+    message || `Unable to resolve sync owner (${response?.status || "unknown"})`
+  );
   error.status = Number(response?.status || 0) || null;
   return error;
 }
@@ -416,7 +418,18 @@ class AuthManagerClass {
       if (sessionGeneration !== this.sessionGeneration) {
         throw new Error("Session changed while resolving sync owner");
       }
-      const id = String(data?.user?.id || "").trim();
+      // The current API returns { user: { id } }, while existing StreamTV
+      // deployments may return the already-unwrapped user or userId. They all
+      // identify the same authenticated account and must not block startup.
+      const id = String(
+        data?.user?.id ||
+          data?.user?.userId ||
+          data?.user?.user_id ||
+          data?.id ||
+          data?.userId ||
+          data?.user_id ||
+          ""
+      ).trim();
       if (!id) throw new Error("Invalid StreamTV user response");
       this.cachedEffectiveUserId = id;
       return id;
