@@ -18,7 +18,7 @@ write_value() {
   printf '    %s: decode("%s")' "$key" "$(base64_value "$value")"
 }
 
-if [ -z "${NUVIO_SUPABASE_URL:-}" ] || [ -z "${NUVIO_SUPABASE_ANON_KEY:-}" ]; then
+if { [ -z "${NUVIO_SUPABASE_URL:-}" ] || [ -z "${NUVIO_SUPABASE_ANON_KEY:-}" ]; } && [ -z "${STREAMTV_API_BASE_URL:-}" ]; then
   echo "Nuvio browser configuration is incomplete: Supabase URL and anon key are required." >&2
 fi
 
