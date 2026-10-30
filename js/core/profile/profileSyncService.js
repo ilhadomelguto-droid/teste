@@ -2,6 +2,11 @@ import { AuthManager } from "../auth/authManager.js";
 import { MAX_PROFILES, ProfileManager } from "./profileManager.js";
 import { SupabaseApi } from "../../data/remote/supabase/supabaseApi.js";
 import { LocalStore } from "../storage/localStore.js";
+import { STREAMTV_API_BASE_URL } from "../../config.js";
+
+function usesStreamTvAccountSync() {
+  return Boolean(STREAMTV_API_BASE_URL);
+}
 
 const TABLE = "tv_profiles";
 const FALLBACK_TABLE = "profiles";
@@ -71,6 +76,9 @@ export const ProfileSyncService = {
       if (!AuthManager.isAuthenticated) {
         return [];
       }
+      if (usesStreamTvAccountSync()) {
+        return ProfileManager.getProfiles();
+      }
       let rows = [];
       try {
         rows = await SupabaseApi.rpc(PULL_RPC, {}, true);
@@ -115,6 +123,7 @@ export const ProfileSyncService = {
       if (!AuthManager.isAuthenticated) {
         return false;
       }
+      if (usesStreamTvAccountSync()) return true;
       const profiles = await ProfileManager.getProfiles();
       try {
         await SupabaseApi.rpc(
@@ -231,6 +240,7 @@ export const ProfileSyncService = {
       if (!AuthManager.isAuthenticated) {
         return this.readCachedProfileLockStates();
       }
+      if (usesStreamTvAccountSync()) return this.readCachedProfileLockStates();
       const rows = await SupabaseApi.rpc(PULL_LOCKS_RPC, {}, true);
       const states = (Array.isArray(rows) ? rows : []).reduce((accumulator, row) => {
         const profileIndex = Number(row?.profile_index ?? row?.profileIndex ?? row?.id ?? 0);

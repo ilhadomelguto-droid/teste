@@ -2,6 +2,7 @@ import { AuthManager } from "../auth/authManager.js";
 import { watchProgressRepository } from "../../data/repository/watchProgressRepository.js";
 import { isNuvioSyncOwnedProgress } from "../../data/repository/watchProgressProvenance.js";
 import { SupabaseApi } from "../../data/remote/supabase/supabaseApi.js";
+import { STREAMTV_API_BASE_URL } from "../../config.js";
 import { ProfileManager } from "./profileManager.js";
 import { LocalStore } from "../storage/localStore.js";
 import { TraktAuthStore } from "../../data/local/traktAuthStore.js";
@@ -185,6 +186,7 @@ function resolveProfileId() {
 }
 
 function shouldUseSupabaseWatchProgressSync() {
+  if (STREAMTV_API_BASE_URL) return false;
   const source = TraktSettingsStore.get().watchProgressSource || WatchProgressSource.TRAKT;
   const providerSelected =
     (TraktAuthStore.isAuthenticated() && source === WatchProgressSource.TRAKT) ||
@@ -380,6 +382,11 @@ async function pushOnce() {
   try {
     if (!AuthManager.isAuthenticated) {
       return false;
+    }
+    if (STREAMTV_API_BASE_URL) {
+      // The account snapshot service observes the local write and sends it to
+      // StreamTV; never send a Supabase RPC to this static web origin.
+      return true;
     }
     if (reconnectPullOwed) {
       // The reconnect sequence pulls and then pushes, so nothing is lost by

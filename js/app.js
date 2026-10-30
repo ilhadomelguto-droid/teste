@@ -32,6 +32,7 @@ import { applyDeviceLayout, installDeviceLayoutWatcher } from "./ui/navigation/d
 import { installWatchProgressReconnectSync } from "./core/profile/watchProgressReconnect.js";
 import { dispatchOutplayerExplicitFinish } from "./ui/components/browserOutplayerFinishDispatch.js";
 import { PlayerScreen } from "./ui/screens/player/playerScreen.js";
+import { STREAMTV_API_BASE_URL } from "./config.js";
 
 (function applyLegacyPatches() {
   const originalGetElementById = document.getElementById;
@@ -336,7 +337,11 @@ async function bootstrapApp() {
   warmStreamingLibs({ delayMs: 1400 });
 
   markBootStage("Restoring session");
-  DeviceSessionRegistration.start();
+  // StreamTV uses its own account/session API. Calling the old Supabase RPCs
+  // against this static site created a continuous 405 loop and froze startup.
+  if (!STREAMTV_API_BASE_URL) {
+    DeviceSessionRegistration.start();
+  }
   AuthManager.subscribe((state) => {
     if (state === AuthState.LOADING) {
       StartupSyncService.stop();
@@ -413,7 +418,9 @@ async function bootstrapApp() {
   await AuthManager.bootstrap();
   // Progress written while offline had nothing to carry it up: pushes ride on
   // playback events, so it could sit unsent until the next thing was played.
-  installWatchProgressReconnectSync();
+  if (!STREAMTV_API_BASE_URL) {
+    installWatchProgressReconnectSync();
+  }
   installExternalPlaybackReturnCoordinator({
     getProfileId: () => ProfileManager.getActiveProfileId(),
     onAutomaticReport: async (report) => {

@@ -1,5 +1,6 @@
 import { AuthManager } from "../auth/authManager.js";
 import { SupabaseApi } from "../../data/remote/supabase/supabaseApi.js";
+import { STREAMTV_API_BASE_URL } from "../../config.js";
 import { watchedItemsRepository } from "../../data/repository/watchedItemsRepository.js";
 import { isNuvioSyncOwnedProgress } from "../../data/repository/watchProgressProvenance.js";
 import { ProfileManager } from "./profileManager.js";
@@ -21,6 +22,7 @@ function resolveProfileId() {
 }
 
 function shouldUseSupabaseWatchProgressSync() {
+  if (STREAMTV_API_BASE_URL) return false;
   const source = TraktSettingsStore.get().watchProgressSource || WatchProgressSource.TRAKT;
   const providerSelected =
     (TraktAuthStore.isAuthenticated() && source === WatchProgressSource.TRAKT) ||
@@ -244,6 +246,7 @@ export const WatchedItemsSyncService = {
       if (!AuthManager.isAuthenticated) {
         return false;
       }
+      if (STREAMTV_API_BASE_URL) return true;
       const sessionGeneration = AuthManager.getSessionGeneration();
       const items = (await watchedItemsRepository.listLocal()).filter((item) =>
         isNuvioSyncOwnedProgress(item)

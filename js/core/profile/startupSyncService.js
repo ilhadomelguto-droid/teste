@@ -14,6 +14,8 @@ import { ProviderCredentialSyncService } from "./providerCredentialSyncService.j
 import { SimklSyncService } from "../../data/repository/simklSyncService.js";
 import { CollectionSyncService } from "./collectionSyncService.js";
 import { HomeCatalogSettingsSyncService } from "./homeCatalogSettingsSyncService.js";
+import { StreamTvAccountSyncService } from "./streamTvAccountSyncService.js";
+import { STREAMTV_API_BASE_URL } from "../../config.js";
 import { ThemeManager } from "../../ui/theme/themeManager.js";
 import { I18n } from "../../i18n/index.js";
 import { SyncHydrationState, SyncPullResult } from "./syncHydrationState.js";
@@ -206,10 +208,7 @@ export const StartupSyncService = {
   // promise reference themselves.
   async hydrateCriticalHome(profileId = ProfileManager.getActiveProfileId()) {
     const resolvedProfileId = normalizeProfileId(profileId);
-    if (
-      pendingCriticalHydration &&
-      pendingCriticalHydration.profileId === resolvedProfileId
-    ) {
+    if (pendingCriticalHydration && pendingCriticalHydration.profileId === resolvedProfileId) {
       return pendingCriticalHydration.promise;
     }
     const promise = hydrateCriticalHomeUncached(resolvedProfileId);
@@ -251,6 +250,13 @@ export const StartupSyncService = {
     if (!AuthManager.isAuthenticated) {
       return {};
     }
+    // The StreamTV deployment persists the same domains as one account
+    // snapshot. Do not issue legacy /rest/v1 Supabase requests to the static
+    // Nginx host: those are 405s and can starve the UI thread with retries.
+    if (STREAMTV_API_BASE_URL) {
+      await StreamTvAccountSyncService.sync().catch(() => false);
+      return {};
+    }
     const pullResults = {};
     const syncStartedAt = syncNow();
     const activeProfileId = ProfileManager.getActiveProfileId();
@@ -269,26 +275,30 @@ export const StartupSyncService = {
         // Every background branch starts now. SIMKL retains its credential →
         // refresh dependency inside its own branch, so it cannot delay
         // collections, library, watched/progress, plugins, or Home.
-        const profilesTask = Promise.resolve().then(() => ProfileSyncService.pull()).then(async (profiles) => {
-          logSyncTiming("background-profile-pull", syncStartedAt);
-          const profileIds = await collectKnownProfileIds(profiles);
-          await Promise.allSettled(
-            profileIds
-              .filter((profileId) => normalizeProfileId(profileId) !== normalizeProfileId(activeProfileId))
-              .map((profileId) => ProfileSettingsSyncService.pull(profileId))
-          );
-          logSyncTiming("background-inactive-profile-settings-pull", syncStartedAt);
-          return profiles;
-        });
+        const profilesTask = Promise.resolve()
+          .then(() => ProfileSyncService.pull())
+          .then(async (profiles) => {
+            logSyncTiming("background-profile-pull", syncStartedAt);
+            const profileIds = await collectKnownProfileIds(profiles);
+            await Promise.allSettled(
+              profileIds
+                .filter(
+                  (profileId) =>
+                    normalizeProfileId(profileId) !== normalizeProfileId(activeProfileId)
+                )
+                .map((profileId) => ProfileSettingsSyncService.pull(profileId))
+            );
+            logSyncTiming("background-inactive-profile-settings-pull", syncStartedAt);
+            return profiles;
+          });
         const traktCredentialsTask = Promise.resolve().then(() =>
           TraktCredentialSyncService.pullFromRemote(activeProfileId)
         );
         const providerCredentialsTask = Promise.resolve().then(() =>
           ProviderCredentialSyncService.syncFromRemote(activeProfileId)
         );
-        const simklTask = Promise.resolve().then(() =>
-          SimklCredentialSyncService.pullFromRemote(activeProfileId)
-        )
+        const simklTask = Promise.resolve()
+          .then(() => SimklCredentialSyncService.pullFromRemote(activeProfileId))
           .then(() => SimklSyncService.refresh())
           .catch((error) => {
             console.warn("Simkl automatic refresh failed", error);
@@ -300,9 +310,13 @@ export const StartupSyncService = {
           : null;
         const scopedTasks = includeProfileScoped
           ? {
-              collections: Promise.resolve().then(() => CollectionSyncService.pull(activeProfileId)),
+              collections: Promise.resolve().then(() =>
+                CollectionSyncService.pull(activeProfileId)
+              ),
               plugins: Promise.resolve().then(() => PluginSyncService.pull()),
-              savedLibrary: Promise.resolve().then(() => SavedLibrarySyncService.pull(activeProfileId)),
+              savedLibrary: Promise.resolve().then(() =>
+                SavedLibrarySyncService.pull(activeProfileId)
+              ),
               watchedItems: watchedItemsTask,
               // Both requests still go out together; only the progress merge
               // waits, because a completion made on another device arrives as a
@@ -356,6 +370,10 @@ export const StartupSyncService = {
     if (!AuthManager.isAuthenticated) {
       return;
     }
+    if (STREAMTV_API_BASE_URL) {
+      await StreamTvAccountSyncService.sync().catch(() => false);
+      return;
+    }
     try {
       const allow = (result) =>
         result?.result === SyncPullResult.SUCCESS_WITH_DATA ||
@@ -383,6 +401,9 @@ export const StartupSyncService = {
   },
 
   requestAddonSync() {
+    if (STREAMTV_API_BASE_URL) {
+      return StreamTvAccountSyncService.sync().catch(() => false);
+    }
     if (!this.started || !this.profileScopedSyncEnabled || !AuthManager.isAuthenticated) {
       return Promise.resolve(false);
     }

@@ -115,34 +115,51 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys
-      .filter((key) => key.startsWith("nuvio-app-shell-") && key !== CACHE_NAME)
-      .map((key) => caches.delete(key)))).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith("nuvio-app-shell-") && key !== CACHE_NAME)
+            .map((key) => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("push", (event) => {
   let payload;
-  try { payload = event.data?.json?.(); } catch (_) { return; }
+  try {
+    payload = event.data?.json?.();
+  } catch (_) {
+    return;
+  }
   if (payload?.type !== "external-playback-return") return;
   const finished = payload.kind === "finished";
-  event.waitUntil(self.registration.showNotification("NuvioWeb", {
-    body: finished ? "Playback completed. Tap to return to NuvioWeb." : "Playback updated. Tap to return to NuvioWeb.",
-    tag: "nuvio-external-playback-return",
-    data: { type: "external-playback-return" }
-  }));
+  event.waitUntil(
+    self.registration.showNotification("NuvioWeb", {
+      body: finished
+        ? "Playback completed. Tap to return to NuvioWeb."
+        : "Playback updated. Tap to return to NuvioWeb.",
+      tag: "nuvio-external-playback-return",
+      data: { type: "external-playback-return" }
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
   if (event.notification?.data?.type !== "external-playback-return") return;
   event.notification.close();
-  event.waitUntil((async () => {
-    const scope = self.registration.scope;
-    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const existing = clients.find((client) => String(client.url || "").startsWith(scope));
-    if (existing) return existing.focus();
-    return self.clients.openWindow(scope);
-  })());
+  event.waitUntil(
+    (async () => {
+      const scope = self.registration.scope;
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = clients.find((client) => String(client.url || "").startsWith(scope));
+      if (existing) return existing.focus();
+      return self.clients.openWindow(scope);
+    })()
+  );
 });
 
 self.addEventListener("fetch", (event) => {
@@ -187,7 +204,11 @@ self.addEventListener("fetch", (event) => {
       if (cached) return cached;
       return fetch(request).then((response) => {
         if (response.ok) {
-          void caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+          // Clone before the response is returned to the page. Doing it in
+          // the asynchronous cache callback can happen after the browser has
+          // consumed the body, which throws and breaks the service worker.
+          const copy = response.clone();
+          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
         return response;
       });
