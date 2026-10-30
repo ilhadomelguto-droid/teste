@@ -10,6 +10,7 @@ import { ProfileManager } from "./core/profile/profileManager.js";
 import { ProfileSyncService } from "./core/profile/profileSyncService.js";
 import { shouldShowProfileSelectionAtStartup } from "./core/profile/profileStartupSelectionPolicy.js";
 import { StartupSyncService } from "./core/profile/startupSyncService.js";
+import { StreamTvAccountSyncService } from "./core/profile/streamTvAccountSyncService.js";
 import { ProviderCredentialSyncService } from "./core/profile/providerCredentialSyncService.js";
 import { ThemeManager } from "./ui/theme/themeManager.js";
 import { renderAppShell } from "./bootstrap/renderAppShell.js";
@@ -242,6 +243,13 @@ async function enterWithLastProfile() {
 
 async function routeAfterAuthentication() {
   const startedAt = startupNow();
+  // Load the account snapshot before profile selection and catalog startup.
+  // That makes addons, profile preferences and progress identical on a new
+  // browser instead of briefly showing that browser's defaults.
+  await StreamTvAccountSyncService.initialize().catch((error) => {
+    console.warn("StreamTV account configuration sync failed", error);
+  });
+  StreamTvAccountSyncService.start();
   const profileRoute = await shouldShowProfileSelection();
   if (profileRoute.show) {
     await Router.navigate("profileSelection", {
@@ -332,12 +340,14 @@ async function bootstrapApp() {
   AuthManager.subscribe((state) => {
     if (state === AuthState.LOADING) {
       StartupSyncService.stop();
+      StreamTvAccountSyncService.stop();
       ProviderCredentialSyncService.cancelForegroundPull();
       return;
     }
 
     if (state === AuthState.SIGNED_OUT) {
       StartupSyncService.stop();
+      StreamTvAccountSyncService.stop();
       ProviderCredentialSyncService.cancelForegroundPull();
       hasSelectedProfileThisSession = false;
       const shouldBypassQr = Boolean(LocalStore.get(GUEST_QR_BYPASS_KEY, false));

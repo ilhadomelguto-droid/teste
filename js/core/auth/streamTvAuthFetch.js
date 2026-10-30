@@ -11,12 +11,12 @@ function normalizedBaseUrl() {
     .replace(/\/+$/, "");
 }
 
-function endpoint(path) {
+function apiEndpoint(path) {
   const baseUrl = normalizedBaseUrl();
   if (!baseUrl) {
     throw new Error("StreamTV login is not configured");
   }
-  return `${baseUrl}/api/auth/${path}`;
+  return `${baseUrl}/api/${String(path || "").replace(/^\/+/, "")}`;
 }
 
 function createDeviceId() {
@@ -54,8 +54,8 @@ function headers({ token = "", json = false } = {}) {
   };
 }
 
-async function request(path, { method = "GET", token = "", body } = {}) {
-  const response = await fetch(endpoint(path), {
+async function requestApi(path, { method = "GET", token = "", body } = {}) {
+  const response = await fetch(apiEndpoint(path), {
     method,
     headers: headers({ token, json: body !== undefined }),
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -84,17 +84,32 @@ function toSession(payload) {
 }
 
 export async function streamTvLogin(identifier, password) {
-  return toSession(await request("login", { method: "POST", body: { identifier, password } }));
+  return toSession(await requestApi("auth/login", { method: "POST", body: { identifier, password } }));
 }
 
 export async function streamTvRefresh(refreshToken) {
-  return toSession(await request("refresh", { method: "POST", body: { refreshToken } }));
+  return toSession(await requestApi("auth/refresh", { method: "POST", body: { refreshToken } }));
 }
 
 export async function streamTvMe(token) {
-  return request("me", { token });
+  return requestApi("auth/me", { token });
 }
 
 export async function streamTvLogout(token) {
-  return request("logout", { method: "POST", token });
+  return requestApi("auth/logout", { method: "POST", token });
+}
+
+// This config belongs to the StreamTV account, rather than to a browser. It
+// deliberately uses the normal user session; no device or administrator token
+// can read another account's profile configuration.
+export async function streamTvGetAccountConfig(token) {
+  return requestApi("nuvio/account-config", { token });
+}
+
+export async function streamTvPutAccountConfig(token, payload, expectedRevision) {
+  return requestApi("nuvio/account-config", {
+    method: "PUT",
+    token,
+    body: { payload, expectedRevision }
+  });
 }

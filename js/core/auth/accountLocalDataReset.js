@@ -46,6 +46,24 @@ const ACCOUNT_LOCAL_STORAGE_PREFIXES = [
   "traktCachedStats:"
 ];
 
+// Derived artwork and retry bookkeeping can grow without bound and are rebuilt
+// from the real account state. They must not consume the server's deliberately
+// small account-document quota, which is reserved for profiles, addons,
+// settings, favourites and watch progress.
+const ACCOUNT_SNAPSHOT_EXCLUDED_KEYS = new Set([
+  "homeContinueWatchingDisplaySnapshot",
+  "homeContinueWatchingEnrichmentCache",
+  "browserProfileAvatarCacheIndex",
+  "memberAccessCache",
+  "manualSyncCode",
+  "nuvioSyncBackoffState",
+  "profileSettingsSyncCache",
+  "profileSettingsSyncPendingProfiles",
+  "homeCatalogSettingsPendingPushTokens",
+  "providerCredentialSyncPendingProfiles"
+]);
+const ACCOUNT_SNAPSHOT_EXCLUDED_PREFIXES = ["traktCachedStats:"];
+
 // Nothing survives a sign-out.
 //
 // Torrent settings used to, on the reasoning that they describe this device
@@ -89,6 +107,55 @@ function shouldRemoveLocalStorageKey(key, rawValue) {
     ACCOUNT_LOCAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)) ||
     isProfileScopedEnvelope(rawValue)
   );
+}
+
+// The same boundary is used for a remote account snapshot. Keeping this next
+// to sign-out cleanup prevents session tokens, device IDs, downloads and image
+// caches from accidentally becoming account data.
+export function exportAccountLocalData(storage = globalThis.localStorage) {
+  const entries = {};
+  if (!storage) return entries;
+  try {
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key) continue;
+      const rawValue = storage.getItem(key);
+      if (
+        shouldRemoveLocalStorageKey(key, rawValue) &&
+        !ACCOUNT_SNAPSHOT_EXCLUDED_KEYS.has(key) &&
+        !ACCOUNT_SNAPSHOT_EXCLUDED_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
+        typeof rawValue === "string"
+      ) {
+        entries[key] = rawValue;
+      }
+    }
+  } catch (_) {
+    // Browser storage can be unavailable in private modes. Local operation
+    // continues; the next successful cycle will retry.
+  }
+  return entries;
+}
+
+export function importAccountLocalData(entries, storage = globalThis.localStorage) {
+  if (!storage || !entries || typeof entries !== "object" || Array.isArray(entries)) return false;
+  try {
+    const currentKeys = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key) currentKeys.push(key);
+    }
+    currentKeys.forEach((key) => {
+      if (shouldRemoveLocalStorageKey(key, storage.getItem(key))) storage.removeItem(key);
+    });
+    Object.entries(entries).forEach(([key, value]) => {
+      if (typeof key !== "string" || typeof value !== "string") return;
+      // Do not trust a remote document to expand the allow-list.
+      if (shouldRemoveLocalStorageKey(key, value)) storage.setItem(key, value);
+    });
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 export function registerAccountRuntimeResetHandler(handler) {
