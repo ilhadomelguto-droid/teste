@@ -1,4 +1,4 @@
-import { TRAKT_API_URL, TRAKT_CLIENT_ID } from "../../config.js";
+import { STREAMTV_API_BASE_URL, TRAKT_API_URL, TRAKT_CLIENT_ID } from "../../config.js";
 import { TraktAuthStore } from "../local/traktAuthStore.js";
 import { detailWatchedEnrichmentService } from "./detailWatchedEnrichmentService.js";
 import { TraktCredentialSyncService } from "../../core/profile/traktCredentialSyncService.js";
@@ -47,6 +47,10 @@ async function requestBrowserBridge(path, { method = "POST", body = null } = {})
 }
 
 async function ensureBrowserAuthBridge() {
+  if (STREAMTV_API_BASE_URL) {
+    browserBridgeStatus = "unavailable";
+    return false;
+  }
   try {
     const { response, payload } = await requestBrowserBridge("/health", { method: "GET" });
     browserBridgeStatus = response.ok && payload?.configured === true ? "available" : "unavailable";

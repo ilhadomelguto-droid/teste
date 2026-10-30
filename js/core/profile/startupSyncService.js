@@ -69,6 +69,14 @@ async function hydrateCriticalHomeUncached(resolvedProfileId) {
   if (!resolvedProfileId || !isActiveProfile(resolvedProfileId)) {
     return { profileId: resolvedProfileId, current: false, addons: null };
   }
+  if (STREAMTV_API_BASE_URL) {
+    // StreamTV restored its snapshot before profile routing. There is no
+    // Supabase critical path to wait for, so Home can mount immediately.
+    await I18n.init();
+    ThemeManager.apply();
+    I18n.apply();
+    return { profileId: resolvedProfileId, current: true, addons: null };
+  }
 
   // Home must not mount with a temporary catalog layout or add-on list and
   // then visibly replace it. These are the only remote domains on its first

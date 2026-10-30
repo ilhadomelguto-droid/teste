@@ -10,6 +10,18 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../../config.js";
 // Reported once per distinct failure so a retry loop cannot flood the buffer.
 const reportedFailures = new Set();
 
+// A StreamTV-only deployment has no Supabase REST endpoint. Returning the
+// neutral shape locally prevents a relative /rest/v1 request from becoming a
+// 405 storm on the static Nginx host. The account snapshot service is the
+// authoritative synchronisation path in that mode.
+function isConfigured() {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+}
+
+function unavailableResult() {
+  return Promise.resolve([]);
+}
+
 function reportRequestFailure(url, error) {
   const status = Number(error?.status || 0);
   let where = "unparseable-url";
@@ -50,6 +62,7 @@ function buildHeaders(extra = {}, useSession = true) {
 
 export const SupabaseApi = {
   rpc(functionName, body = {}, useSession = true) {
+    if (!isConfigured()) return unavailableResult();
     return request(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
       method: "POST",
       headers: buildHeaders({ "Content-Type": "application/json" }, useSession),
@@ -59,6 +72,7 @@ export const SupabaseApi = {
   },
 
   select(table, query = "", useSession = true) {
+    if (!isConfigured()) return unavailableResult();
     const suffix = query ? `?${query}` : "";
     return request(`${SUPABASE_URL}/rest/v1/${table}${suffix}`, {
       method: "GET",
@@ -68,6 +82,7 @@ export const SupabaseApi = {
   },
 
   upsert(table, rows, onConflict = null, useSession = true) {
+    if (!isConfigured()) return unavailableResult();
     const query = onConflict ? `?on_conflict=${encodeURIComponent(onConflict)}` : "";
     return request(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
       method: "POST",
@@ -84,6 +99,7 @@ export const SupabaseApi = {
   },
 
   delete(table, query, useSession = true) {
+    if (!isConfigured()) return unavailableResult();
     return request(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
       method: "DELETE",
       headers: buildHeaders({ Prefer: "return=representation" }, useSession),

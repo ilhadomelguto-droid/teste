@@ -1,4 +1,5 @@
 import { MdbListAuthStore } from "../local/mdbListAuthStore.js";
+import { STREAMTV_API_BASE_URL } from "../../config.js";
 
 const BRIDGE_BASE_PATH = "/api/mdblist";
 const REFRESH_LEEWAY_MS = 60_000;
@@ -32,6 +33,10 @@ function errorMessage(payload, fallback) {
 }
 
 async function checkBridge() {
+  if (STREAMTV_API_BASE_URL) {
+    bridgeStatus = "unavailable";
+    return false;
+  }
   try {
     const { response, payload } = await requestBridge("/health", { method: "GET" });
     bridgeStatus = response.ok && payload?.configured === true ? "available" : "unavailable";
