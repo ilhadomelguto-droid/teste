@@ -1,4 +1,5 @@
 import { INTRODB_API_URL } from "../../config.js";
+import { TmdbService } from "../../core/tmdb/tmdbService.js";
 
 const CACHE = new Map();
 
@@ -15,6 +16,22 @@ function normalizeBaseUrl(value = "") {
     return "";
   }
   return normalized.endsWith("/") ? normalized : `${normalized}/`;
+}
+
+function introDbSegmentsUrl(baseUrl, parameters) {
+  // IntroDB currently permits browser requests only from its own origin. Go
+  // through our tightly scoped same-origin bridge when the app is in a
+  // browser; native and test environments keep the configurable direct URL.
+  const browserOrigin = globalThis.location?.origin;
+  const url = browserOrigin && /^https?:$/i.test(globalThis.location?.protocol || "")
+    ? new URL("/api/introdb/segments", browserOrigin)
+    : new URL("segments", baseUrl);
+  Object.entries(parameters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return url.toString();
 }
 
 function toSkipInterval(segment, type) {
@@ -42,6 +59,35 @@ function toSkipInterval(segment, type) {
   };
 }
 
+function toMovieSkipIntervals(data) {
+  const credits = toSkipInterval(data?.outro, "movie-credits");
+  const postCredits = toSkipInterval(data?.post_credits, "post-credits");
+  // Never skip across a post-credit scene when providers return overlapping
+  // ranges. This mirrors the current NuvioTV behaviour.
+  const safeCredits =
+    credits &&
+    postCredits &&
+    postCredits.startTime < credits.endTime &&
+    postCredits.endTime > credits.startTime
+      ? { ...credits, endTime: postCredits.startTime }
+      : credits;
+  return [safeCredits, postCredits]
+    .filter((interval) => interval && interval.endTime > interval.startTime)
+    .sort((left, right) => left.startTime - right.startTime);
+}
+
+async function resolveImdbId(imdbId, tmdbId, type) {
+  const direct = normalizeImdbId(imdbId);
+  if (direct) return direct;
+  const numericTmdbId = String(tmdbId || "").trim();
+  if (!/^\d+$/.test(numericTmdbId)) return "";
+  try {
+    return normalizeImdbId(await TmdbService.tmdbToImdb(numericTmdbId, type));
+  } catch (_) {
+    return "";
+  }
+}
+
 async function fetchJson(url, timeoutMs = 3500) {
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
@@ -66,9 +112,9 @@ async function fetchJson(url, timeoutMs = 3500) {
 }
 
 export const skipIntroRepository = {
-  async getSkipIntervals(imdbId, season, episode) {
+  async getSkipIntervals(imdbId, season, episode, { tmdbId = 0, type = "tv" } = {}) {
     const baseUrl = normalizeBaseUrl(INTRODB_API_URL);
-    const normalizedImdbId = normalizeImdbId(imdbId);
+    const normalizedImdbId = await resolveImdbId(imdbId, tmdbId, type);
     const seasonNumber = Number(season || 0);
     const episodeNumber = Number(episode || 0);
     if (!baseUrl || !normalizedImdbId || seasonNumber <= 0 || episodeNumber <= 0) {
@@ -80,12 +126,13 @@ export const skipIntroRepository = {
       return CACHE.get(cacheKey);
     }
 
-    const url = new URL("segments", baseUrl);
-    url.searchParams.set("imdb_id", normalizedImdbId);
-    url.searchParams.set("season", String(seasonNumber));
-    url.searchParams.set("episode", String(episodeNumber));
-
-    const data = await fetchJson(url.toString());
+    const data = await fetchJson(
+      introDbSegmentsUrl(baseUrl, {
+        imdb_id: normalizedImdbId,
+        season: seasonNumber,
+        episode: episodeNumber
+      })
+    );
     const intervals = [
       toSkipInterval(data?.intro, "intro"),
       toSkipInterval(data?.recap, "recap"),
@@ -94,6 +141,21 @@ export const skipIntroRepository = {
       .filter(Boolean)
       .sort((left, right) => left.startTime - right.startTime);
 
+    CACHE.set(cacheKey, intervals);
+    return intervals;
+  },
+
+  async getMovieSkipIntervals(imdbId, { tmdbId = 0 } = {}) {
+    const baseUrl = normalizeBaseUrl(INTRODB_API_URL);
+    const normalizedImdbId = await resolveImdbId(imdbId, tmdbId, "movie");
+    if (!baseUrl || !normalizedImdbId) return [];
+
+    const cacheKey = `movie:${normalizedImdbId}`;
+    if (CACHE.has(cacheKey)) return CACHE.get(cacheKey);
+
+    const intervals = toMovieSkipIntervals(
+      await fetchJson(introDbSegmentsUrl(baseUrl, { imdb_id: normalizedImdbId, is_movie: "true" }))
+    );
     CACHE.set(cacheKey, intervals);
     return intervals;
   }

@@ -73,6 +73,7 @@ import { openTouchActionSheet } from "../../components/touchActionSheet.js";
 import {
   getBrowserExternalPlayerOptions,
   getBrowserExternalPlayerPlatform,
+  isBrowserNativePlayer,
   launchBrowserExternalPlayer,
   normalizeBrowserExternalPlayer,
   prepareBrowserExternalPlaybackLaunch
@@ -2654,11 +2655,11 @@ export const StreamScreen = {
         icon: "content_copy"
       }
     ];
-    const externalOptions = getBrowserExternalPlayerOptions().filter((id) => id !== "disabled");
+    const externalOptions = getBrowserExternalPlayerOptions().filter((id) => !isBrowserNativePlayer(id));
     const configured = normalizeBrowserExternalPlayer(
       PlayerSettingsStore.get().browserExternalPlayer
     );
-    const usingExternal = configured !== "disabled" && externalOptions.includes(configured);
+    const usingExternal = !isBrowserNativePlayer(configured) && externalOptions.includes(configured);
     if (usingExternal) {
       options.push({
         action: "openInternal",
@@ -2731,7 +2732,7 @@ export const StreamScreen = {
     if (option.action === "openExternal") {
       await this.playStream(stream.id, {
         playerOverride:
-          option.player || getBrowserExternalPlayerOptions().find((id) => id !== "disabled")
+          option.player || getBrowserExternalPlayerOptions().find((id) => !isBrowserNativePlayer(id))
       });
       return true;
     }
@@ -3081,7 +3082,7 @@ export const StreamScreen = {
     // A player this platform cannot launch is not a reason to ask a debrid
     // provider for a link. Desktop offers no external player at all, and a
     // stored choice from a phone outlives the device it was made on.
-    if (player === "disabled" || !getBrowserExternalPlayerOptions().includes(player)) return false;
+    if (isBrowserNativePlayer(player) || !getBrowserExternalPlayerOptions().includes(player)) return false;
     const mediaUrl = await resolveExternalHandoffMediaUrl(selected, {
       season: this.params?.season == null ? null : Number(this.params.season),
       episode: this.params?.episode == null ? null : Number(this.params.episode),

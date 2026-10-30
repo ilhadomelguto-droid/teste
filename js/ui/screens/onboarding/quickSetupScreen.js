@@ -200,7 +200,7 @@ export const QuickSetupScreen = {
             t(
               "quick_setup_player_ios_note",
               {},
-              "On iPhone and iPad an external player is recommended: it plays what the browser cannot. Lenna is the pick because it has a built-in subtitle search."
+              "Native mobile player plays compatible MP4 files directly in Safari. Choose an external player only when a stream needs formats or features the browser cannot provide."
             )
           )}</p>`
         : "";

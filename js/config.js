@@ -24,6 +24,11 @@ export const SUPABASE_URL = String(runtimeEnv.NUVIO_SUPABASE_URL || "").trim();
 export const SUPABASE_ANON_KEY = String(runtimeEnv.NUVIO_SUPABASE_ANON_KEY || "").trim();
 export const SUPABASE_FALLBACK_URL = String(runtimeEnv.NUVIO_SUPABASE_FALLBACK_URL || "").trim();
 export const TV_LOGIN_WEB_BASE_URL = String(runtimeEnv.TV_LOGIN_WEB_BASE_URL || "").trim();
+// Browser-public origin of the StreamTV account API.  It deliberately carries
+// no credential: every request uses the user's own session token.
+export const STREAMTV_API_BASE_URL = String(runtimeEnv.STREAMTV_API_BASE_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
 export const YOUTUBE_PROXY_URL = String(
   runtimeEnv.YOUTUBE_PROXY_URL || "youtube-proxy.html"
 ).trim();

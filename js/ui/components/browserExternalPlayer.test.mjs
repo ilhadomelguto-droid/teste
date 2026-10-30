@@ -38,13 +38,13 @@ function createHandoffRuntime() {
 
 test("external player options are platform-aware", () => {
   assert.equal(getBrowserExternalPlayerPlatform(ios), "ios");
-  assert.deepEqual(getBrowserExternalPlayerOptions(ios), ["lenna", "outplayer", "infuse", "vlc", "disabled"]);
+  assert.deepEqual(getBrowserExternalPlayerOptions(ios), ["native", "lenna", "outplayer", "infuse", "vlc", "disabled"]);
   assert.deepEqual(getManualBrowserExternalPlayerOptions(ios), ["lenna", "outplayer", "infuse", "vlc"]);
   assert.equal(getBrowserExternalPlayerStoreUrl({ player: "outplayer", platform: "ios" }), "https://apps.apple.com/app/outplayer/id1449923287");
   assert.equal(getBrowserExternalPlayerPlatform(android), "android");
-  assert.deepEqual(getBrowserExternalPlayerOptions(android), ["disabled", "vlc"]);
+  assert.deepEqual(getBrowserExternalPlayerOptions(android), ["native", "vlc", "disabled"]);
   assert.equal(getBrowserExternalPlayerPlatform(desktop), "other");
-  assert.deepEqual(getBrowserExternalPlayerOptions(desktop), ["disabled"]);
+  assert.deepEqual(getBrowserExternalPlayerOptions(desktop), ["native", "disabled"]);
 });
 
 test("external handoff rejects non-transferable local URLs", () => {
@@ -57,6 +57,7 @@ test("external handoff rejects non-transferable local URLs", () => {
 
 test("default stream routing only bypasses Nuvio for an eligible configured target", () => {
   const mediaUrl = "https://media.example/video.mp4";
+  assert.equal(resolveBrowserStreamPlaybackRoute({ player: "native", platform: "ios", mediaUrl }).target, "nuvio");
   assert.equal(resolveBrowserStreamPlaybackRoute({ player: "disabled", platform: "ios", mediaUrl }).target, "nuvio");
   assert.equal(resolveBrowserStreamPlaybackRoute({ player: "lenna", platform: "ios", mediaUrl }).target, "external");
   assert.equal(resolveBrowserStreamPlaybackRoute({ player: "infuse", platform: "ios", mediaUrl }).target, "external");

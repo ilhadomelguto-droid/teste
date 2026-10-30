@@ -1,10 +1,15 @@
 import { AuthState } from "./authState.js";
 import { clearAccountLocalData, resetAccountRuntimeState } from "./accountLocalDataReset.js";
 import { SessionStore } from "../storage/sessionStore.js";
-import { SUPABASE_ANON_KEY } from "../../config.js";
+import { STREAMTV_API_BASE_URL, SUPABASE_ANON_KEY } from "../../config.js";
 import { fetchSupabaseAuth } from "./supabaseAuthFetch.js";
+import { streamTvLogin, streamTvLogout, streamTvMe, streamTvRefresh } from "./streamTvAuthFetch.js";
 
 const ACCOUNT_OWNER_MARKER_KEY = "nuvioAccountOwnerMarker";
+
+function usesStreamTvAuth() {
+  return Boolean(STREAMTV_API_BASE_URL);
+}
 
 function isJwtLike(token) {
   const value = String(token || "").trim();
@@ -144,6 +149,15 @@ class AuthManagerClass {
   // EMAIL LOGIN
   // ------------------------------------
   async signInWithEmail(email, password) {
+    if (usesStreamTvAuth()) {
+      const session = await streamTvLogin(String(email || "").trim(), password);
+      SessionStore.accessToken = session.accessToken;
+      SessionStore.refreshToken = session.refreshToken;
+      SessionStore.isAnonymousSession = false;
+      await this.establishAuthenticatedSession();
+      return;
+    }
+
     const res = await fetchSupabaseAuth("/auth/v1/token?grant_type=password", {
       method: "POST",
       headers: {
@@ -166,6 +180,11 @@ class AuthManagerClass {
 
   async signOut() {
     this.sessionGeneration += 1;
+    const token = SessionStore.accessToken;
+    if (usesStreamTvAuth() && token) {
+      // Logout is best effort: a local sign-out must always work offline.
+      streamTvLogout(token).catch(() => {});
+    }
     SessionStore.clear();
     this.cachedEffectiveUserId = null;
     this.cachedEffectiveUserSourceUserId = null;
@@ -244,6 +263,13 @@ class AuthManagerClass {
 
     this.refreshPromise = (async () => {
       try {
+        if (usesStreamTvAuth()) {
+          const data = await streamTvRefresh(refreshToken);
+          SessionStore.accessToken = data.accessToken;
+          SessionStore.refreshToken = data.refreshToken;
+          this.lastRefreshFailureKind = null;
+          return true;
+        }
         const res = await fetchSupabaseAuth("/auth/v1/token?grant_type=refresh_token", {
           method: "POST",
           headers: {
@@ -374,6 +400,27 @@ class AuthManagerClass {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SessionStore.accessToken}`
     };
+
+    if (usesStreamTvAuth()) {
+      let data;
+      try {
+        data = await streamTvMe(SessionStore.accessToken);
+      } catch (error) {
+        if (Number(error?.status || 0) === 401) {
+          const refreshed = await this.refreshSessionIfNeeded({ force: true });
+          if (refreshed) data = await streamTvMe(SessionStore.accessToken);
+        } else {
+          throw error;
+        }
+      }
+      if (sessionGeneration !== this.sessionGeneration) {
+        throw new Error("Session changed while resolving sync owner");
+      }
+      const id = String(data?.user?.id || "").trim();
+      if (!id) throw new Error("Invalid StreamTV user response");
+      this.cachedEffectiveUserId = id;
+      return id;
+    }
 
     let res = await fetchSupabaseAuth("/rest/v1/rpc/get_sync_owner", {
       method: "POST",

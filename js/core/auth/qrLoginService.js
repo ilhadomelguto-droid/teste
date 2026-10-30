@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY, TV_LOGIN_WEB_BASE_URL } from "../../config.js";
+import { STREAMTV_API_BASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, TV_LOGIN_WEB_BASE_URL } from "../../config.js";
 import { Environment } from "../../platform/environment.js";
 import { SessionStore } from "../storage/sessionStore.js";
 import { AuthManager } from "./authManager.js";
@@ -8,7 +8,9 @@ import { fetchSupabaseAuth } from "./supabaseAuthFetch.js";
 let lastError = null;
 
 function hasQrAuthConfig() {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  // Pairing is intentionally deferred for StreamTV. Never let this screen
+  // create a parallel Supabase identity while StreamTV is the account source.
+  return !STREAMTV_API_BASE_URL && Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 }
 
 function isJwtLike(token) {

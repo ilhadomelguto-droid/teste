@@ -15,6 +15,8 @@
         : existing.NUVIO_SUPABASE_FALLBACK_URL,
     TV_LOGIN_WEB_BASE_URL:
       typeof existing.TV_LOGIN_WEB_BASE_URL === "undefined" ? "" : existing.TV_LOGIN_WEB_BASE_URL,
+    STREAMTV_API_BASE_URL:
+      typeof existing.STREAMTV_API_BASE_URL === "undefined" ? "" : existing.STREAMTV_API_BASE_URL,
     YOUTUBE_PROXY_URL:
       typeof existing.YOUTUBE_PROXY_URL === "undefined"
         ? "youtube-proxy.html"

@@ -2843,8 +2843,9 @@ export const PlayerScreen = {
       this.renderSkipIntroButton();
       return;
     }
-    const { imdbId, season, episode } = this.buildPlaybackIdentityContext();
-    if (!imdbId || !season || !episode) {
+    const { itemType, imdbId, tmdbId, season, episode } = this.buildPlaybackIdentityContext();
+    const isMovie = itemType === "movie";
+    if ((!isMovie && (!season || !episode)) || (!imdbId && !tmdbId)) {
       this.skipIntervals = [];
       this.activeSkipInterval = null;
       this.skipIntervalDismissed = false;
@@ -2858,7 +2859,12 @@ export const PlayerScreen = {
       this.renderSkipIntroButton();
       return;
     }
-    const intervals = await skipIntroRepository.getSkipIntervals(imdbId, season, episode);
+    const intervals = isMovie
+      ? await skipIntroRepository.getMovieSkipIntervals(imdbId, { tmdbId })
+      : await skipIntroRepository.getSkipIntervals(imdbId, season, episode, {
+          tmdbId,
+          type: itemType
+        });
     if (this.skipIntervalsRequestToken !== requestToken) {
       return;
     }
@@ -8458,6 +8464,10 @@ export const PlayerScreen = {
       this.attemptPendingPlaybackRestore();
       this.setLoadingLogoFillTarget(1);
       this.markPlaybackPresentedAfterAdvance();
+      // The browser has confirmed playback. Some native-file implementations
+      // briefly report readyState 0 again after this event, so leaving the
+      // startup watchdog armed creates a false error over a playing video.
+      this.clearPlaybackStallGuard();
       this.updateLoadingVisibility();
       this.updateUiTick();
       this.scheduleLoadingCompletionCheck(900);
@@ -10921,6 +10931,17 @@ export const PlayerScreen = {
         typeof PlayerController.getPlaybackReadyState === "function"
           ? Number(PlayerController.getPlaybackReadyState() || 0)
           : Number(PlayerController.video?.readyState || 0);
+      const videoIsActivelyPlaying = Boolean(
+        PlayerController.video &&
+          !PlayerController.video.paused &&
+          !PlayerController.video.ended
+      );
+      if (videoIsActivelyPlaying) {
+        this.loadingVisible = false;
+        this.updateLoadingVisibility();
+        this.updateUiTick();
+        return;
+      }
       if (startup && this.markPlaybackPresentedAfterAdvance()) {
         this.loadingVisible = false;
         this.updateLoadingVisibility();

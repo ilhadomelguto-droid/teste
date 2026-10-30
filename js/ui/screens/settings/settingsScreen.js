@@ -69,6 +69,7 @@ import { SupabaseApi } from "../../../data/remote/supabase/supabaseApi.js";
 import { Platform } from "../../../platform/index.js";
 import {
   getBrowserExternalPlayerPlatform,
+  isBrowserNativePlayer,
   getBrowserExternalPlayerOptions,
   getBrowserExternalPlayerStoreUrl,
   normalizeBrowserExternalPlayer
@@ -7035,7 +7036,9 @@ export const SettingsScreen = {
         const options = getBrowserExternalPlayerOptions().map((id) => ({
           id,
           label:
-            id === "outplayer"
+            id === "native"
+              ? "Native mobile player (Safari / Chrome)"
+              : id === "outplayer"
               ? "Outplayer"
               : id === "lenna"
                 ? "Lenna"
@@ -7047,7 +7050,7 @@ export const SettingsScreen = {
           subtitle: id === "lenna" ? "Recommended" : ""
         }));
         this.openOptionDialog({
-          title: "Play with external player",
+          title: "Preferred player",
           options,
           selectedId: normalizeBrowserExternalPlayer(
             PlayerSettingsStore.get().browserExternalPlayer
@@ -7057,7 +7060,7 @@ export const SettingsScreen = {
         });
       });
       getBrowserExternalPlayerOptions()
-        .filter((id) => id !== "disabled")
+        .filter((id) => !isBrowserNativePlayer(id))
         .forEach((player) => {
           this.actionMap.set(`playback:getExternalPlayer:${player}`, () => {
             const storeUrl = getBrowserExternalPlayerStoreUrl({
@@ -7644,10 +7647,12 @@ export const SettingsScreen = {
           isDesktopBrowser
             ? this.renderActionRow({
                 focusKey: "playback:externalPlayer",
-                title: "Play with external player",
-                subtitle: "Choose the default player used after selecting a compatible stream.",
+                title: "Preferred player",
+                subtitle: "Use the browser's native mobile player for compatible MP4 files, or choose an installed player.",
                 value:
-                  normalizeBrowserExternalPlayer(model.player.browserExternalPlayer) === "lenna"
+                  normalizeBrowserExternalPlayer(model.player.browserExternalPlayer) === "native"
+                    ? "Native mobile player"
+                    : normalizeBrowserExternalPlayer(model.player.browserExternalPlayer) === "lenna"
                     ? "Lenna"
                     : normalizeBrowserExternalPlayer(model.player.browserExternalPlayer) ===
                         "outplayer"
@@ -7668,7 +7673,7 @@ export const SettingsScreen = {
           (() => {
             const player = normalizeBrowserExternalPlayer(model.player.browserExternalPlayer);
             return (
-              player !== "disabled" &&
+              !isBrowserNativePlayer(player) &&
               Boolean(
                 getBrowserExternalPlayerStoreUrl({
                   player,

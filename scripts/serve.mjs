@@ -215,6 +215,29 @@ async function proxyLocalMediaRequest(request, response, pathname) {
   return true;
 }
 
+async function proxyIntroDbRequest(request, response, requestUrl) {
+  if (request.method !== "GET") {
+    response.writeHead(405, { "Allow": "GET", "Cache-Control": "no-store" });
+    response.end();
+    return;
+  }
+  const upstream = new URL("https://api.introdb.app/segments");
+  for (const key of ["imdb_id", "season", "episode", "is_movie"]) {
+    const value = requestUrl.searchParams.get(key);
+    if (value) upstream.searchParams.set(key, value);
+  }
+  const upstreamResponse = await fetch(upstream, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(6000)
+  });
+  const body = Buffer.from(await upstreamResponse.arrayBuffer());
+  response.writeHead(upstreamResponse.status, {
+    "Cache-Control": "private, max-age=300",
+    "Content-Type": upstreamResponse.headers.get("content-type") || "application/json; charset=utf-8"
+  });
+  response.end(body);
+}
+
 const server = http.createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
@@ -234,6 +257,10 @@ const server = http.createServer(async (request, response) => {
       await (
         await getMdbListBridgeHandler()
       )(request, response);
+      return;
+    }
+    if (requestUrl.pathname === "/api/introdb/segments") {
+      await proxyIntroDbRequest(request, response, requestUrl);
       return;
     }
     if (requestUrl.pathname === "/nuvio.env.js") {

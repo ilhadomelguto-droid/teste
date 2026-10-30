@@ -6,6 +6,7 @@ import {
 import { ProfileManager } from "../../core/profile/profileManager.js";
 
 const EXTERNAL_PLAYER_IDS = Object.freeze({
+  NATIVE: "native",
   DISABLED: "disabled",
   LENNA: "lenna",
   INFUSE: "infuse",
@@ -57,10 +58,16 @@ export function normalizeBrowserExternalPlayer(value) {
     : EXTERNAL_PLAYER_IDS.DISABLED;
 }
 
+export function isBrowserNativePlayer(value) {
+  const normalized = normalizeBrowserExternalPlayer(value);
+  return normalized === EXTERNAL_PLAYER_IDS.NATIVE || normalized === EXTERNAL_PLAYER_IDS.DISABLED;
+}
+
 export function getBrowserExternalPlayerOptions(runtime = globalThis) {
   const platform = getBrowserExternalPlayerPlatform(runtime);
   if (platform === "ios") {
     return [
+      EXTERNAL_PLAYER_IDS.NATIVE,
       EXTERNAL_PLAYER_IDS.LENNA,
       EXTERNAL_PLAYER_IDS.OUTPLAYER,
       EXTERNAL_PLAYER_IDS.INFUSE,
@@ -69,9 +76,9 @@ export function getBrowserExternalPlayerOptions(runtime = globalThis) {
     ];
   }
   if (platform === "android") {
-    return [EXTERNAL_PLAYER_IDS.DISABLED, EXTERNAL_PLAYER_IDS.VLC];
+    return [EXTERNAL_PLAYER_IDS.NATIVE, EXTERNAL_PLAYER_IDS.VLC, EXTERNAL_PLAYER_IDS.DISABLED];
   }
-  return [EXTERNAL_PLAYER_IDS.DISABLED];
+  return [EXTERNAL_PLAYER_IDS.NATIVE, EXTERNAL_PLAYER_IDS.DISABLED];
 }
 
 export function isTransferableExternalMediaUrl(value) {
@@ -177,7 +184,7 @@ export function buildOutplayerLaunchUrl({ mediaUrl, externalReturnToken, externa
 
 export function buildBrowserExternalPlayerLaunch({ player, platform, mediaUrl, title, subtitleUrl, externalReturnToken, externalReturnOrigin, externalReturnMethod = "", resumePositionSeconds = 0, knownDurationMs = 0 } = {}) {
   const selectedPlayer = normalizeBrowserExternalPlayer(player);
-  if (!isTransferableExternalMediaUrl(mediaUrl) || selectedPlayer === EXTERNAL_PLAYER_IDS.DISABLED) {
+  if (!isTransferableExternalMediaUrl(mediaUrl) || isBrowserNativePlayer(selectedPlayer)) {
     return null;
   }
   if (platform === "ios" && selectedPlayer === EXTERNAL_PLAYER_IDS.LENNA) {
@@ -205,7 +212,7 @@ export function resolveBrowserStreamPlaybackRoute(options = {}) {
 }
 
 export function getManualBrowserExternalPlayerOptions(runtime = globalThis) {
-  return getBrowserExternalPlayerOptions(runtime).filter((id) => id !== EXTERNAL_PLAYER_IDS.DISABLED);
+  return getBrowserExternalPlayerOptions(runtime).filter((id) => !isBrowserNativePlayer(id));
 }
 
 export function prepareBrowserExternalPlaybackLaunch({

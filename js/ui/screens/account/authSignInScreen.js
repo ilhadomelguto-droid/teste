@@ -106,13 +106,13 @@ export const AuthSignInScreen = {
             )
           )}</p>
           <form class="desktop-auth-form" novalidate>
-            <label class="desktop-auth-field" for="desktop-auth-email">
-              <span>${escapeHtml(I18n.t("auth.signIn.emailPrompt"))}</span>
+            <label class="desktop-auth-field" for="desktop-auth-identifier">
+              <span>${escapeHtml(t("account_signin_identifier", "E-mail ou usuário"))}</span>
               <span class="desktop-auth-input-wrap">
                 <span class="material-icons desktop-auth-input-icon" aria-hidden="true">mail_outline</span>
-                <input id="desktop-auth-email" class="desktop-auth-input" type="email" name="email"
-                  placeholder="${escapeHtml(t("account_signin_email_placeholder", "you@example.com"))}"
-                  autocomplete="email" inputmode="email" required ${submitting ? "disabled" : ""} />
+                <input id="desktop-auth-identifier" class="desktop-auth-input" type="text" name="identifier"
+                  placeholder="${escapeHtml(t("account_signin_identifier_placeholder", "Seu e-mail ou usuário"))}"
+                  autocomplete="username" autocapitalize="none" spellcheck="false" required ${submitting ? "disabled" : ""} />
               </span>
             </label>
             <label class="desktop-auth-field" for="desktop-auth-password">
@@ -200,10 +200,10 @@ export const AuthSignInScreen = {
     }
 
     const form = event.currentTarget;
-    const email = String(form?.elements?.email?.value || "").trim();
+    const identifier = String(form?.elements?.identifier?.value || "").trim();
     const password = String(form?.elements?.password?.value || "");
-    if (!email || !password) {
-      this.desktopError = "Enter your email address and password.";
+    if (!identifier || !password) {
+      this.desktopError = "Informe seu e-mail ou usuário e a senha.";
       this.renderDesktopBrowser();
       return;
     }
@@ -212,12 +212,12 @@ export const AuthSignInScreen = {
     this.isDesktopSubmitting = true;
     this.renderDesktopBrowser();
     try {
-      // This is the same email/password authentication used by the existing TV dialog.
+      // StreamTV accepts either the user's e-mail or username as identifier.
       // AuthManager's subscription continues the normal profile and sync startup flow.
-      await AuthManager.signInWithEmail(email, password);
+      await AuthManager.signInWithEmail(identifier, password);
     } catch (error) {
       console.error("SignIn failed", error);
-      this.desktopError = "Sign-in failed. Check your email and password.";
+      this.desktopError = "Não foi possível entrar. Verifique seu e-mail ou usuário e a senha.";
     } finally {
       this.isDesktopSubmitting = false;
       if (Router.getCurrent() === "authSignIn") {
