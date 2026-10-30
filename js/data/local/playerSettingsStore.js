@@ -60,6 +60,7 @@ const DEFAULTS = {
   streamAutoPlaySelectedAddons: [],
   streamAutoPlaySelectedPlugins: [],
   streamAutoPlayRegex: "",
+  streamContainerPreference: "ANY",
   streamAutoPlayPreferBingeGroupForNextEpisode: true,
   streamAutoPlayReuseBingeGroup: true,
   streamReuseLastLinkEnabled: false,
@@ -88,6 +89,7 @@ const DEFAULTS = {
 
 const STREAM_AUTO_PLAY_MODES = ["MANUAL", "FIRST_STREAM", "REGEX_MATCH"];
 const STREAM_AUTO_PLAY_SOURCES = ["ALL_SOURCES", "INSTALLED_ADDONS_ONLY", "ENABLED_PLUGINS_ONLY"];
+const STREAM_CONTAINER_PREFERENCES = ["ANY", "MP4", "MKV"];
 const STREAM_AUTO_PLAY_TIMEOUT_UNLIMITED = 2147483647;
 const STREAM_AUTO_PLAY_TIMEOUT_VALUES = [
   0,
@@ -121,6 +123,11 @@ function normalizeStreamAutoPlaySource(value) {
     .trim()
     .toUpperCase();
   return STREAM_AUTO_PLAY_SOURCES.includes(normalized) ? normalized : "ALL_SOURCES";
+}
+
+function normalizeStreamContainerPreference(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return STREAM_CONTAINER_PREFERENCES.includes(normalized) ? normalized : "ANY";
 }
 
 function normalizeStreamAutoPlayTimeout(value) {
@@ -317,6 +324,9 @@ export function normalizePlayerSettings(settings = {}) {
       persistentSettings.streamAutoPlaySelectedPlugins
     ),
     streamAutoPlayRegex: String(persistentSettings.streamAutoPlayRegex ?? "").slice(0, 500),
+    streamContainerPreference: normalizeStreamContainerPreference(
+      persistentSettings.streamContainerPreference ?? DEFAULTS.streamContainerPreference
+    ),
     streamAutoPlayPreferBingeGroupForNextEpisode: Boolean(
       persistentSettings.streamAutoPlayPreferBingeGroupForNextEpisode ??
       DEFAULTS.streamAutoPlayPreferBingeGroupForNextEpisode

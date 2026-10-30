@@ -1373,6 +1373,7 @@ export const StreamScreen = {
       installedAddonNames,
       selectedAddons: settings.streamAutoPlaySelectedAddons,
       selectedPlugins: settings.streamAutoPlaySelectedPlugins,
+      containerPreference: settings.streamContainerPreference,
       preferredBingeGroup,
       preferBingeGroupInSelection: Boolean(preferredBingeGroup)
     });

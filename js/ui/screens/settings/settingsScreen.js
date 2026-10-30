@@ -514,6 +514,12 @@ const STREAM_AUTOPLAY_SOURCE_OPTIONS = [
   }
 ];
 
+const STREAM_CONTAINER_PREFERENCE_OPTIONS = [
+  { id: "ANY", label: "Padrão (qualquer formato)" },
+  { id: "MP4", label: "Preferir MP4" },
+  { id: "MKV", label: "Preferir MKV" }
+];
+
 const STREAM_AUTOPLAY_TIMEOUT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30]
   .map((seconds) => ({
     id: seconds,
@@ -7258,6 +7264,17 @@ export const SettingsScreen = {
         }
       });
     });
+    this.actionMap.set("playback:streamContainerPreference", () => {
+      this.openOptionDialog({
+        title: "Formato preferido da fonte",
+        options: STREAM_CONTAINER_PREFERENCE_OPTIONS,
+        selectedId: PlayerSettingsStore.get().streamContainerPreference,
+        returnFocusKey: "playback:streamContainerPreference",
+        onSelect: (option) => {
+          PlayerSettingsStore.set({ streamContainerPreference: option.id });
+        }
+      });
+    });
     this.actionMap.set("playback:autoStreamTimeout", () => {
       this.openOptionDialog({
         title: t("autoplay_timeout_title", {}, "Stream Selection Timeout"),
@@ -7916,6 +7933,16 @@ export const SettingsScreen = {
               })
             : ""
         }
+        ${this.renderActionRow({
+          focusKey: "playback:streamContainerPreference",
+          title: "Formato preferido da fonte",
+          subtitle: "Ao escolher automaticamente, prioriza MP4 ou MKV quando disponível.",
+          value: labelForOptionId(
+            STREAM_CONTAINER_PREFERENCE_OPTIONS,
+            model.player.streamContainerPreference,
+            "Padrão (qualquer formato)"
+          )
+        })}
         ${this.renderActionRow({
           focusKey: "playback:autoStreamMode",
           title: t("autoplay_stream_selection", {}, "Auto Stream Selection"),

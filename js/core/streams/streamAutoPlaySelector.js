@@ -14,6 +14,44 @@ export const STREAM_AUTO_PLAY_SOURCE = {
   ENABLED_PLUGINS_ONLY: "ENABLED_PLUGINS_ONLY"
 };
 
+export const STREAM_CONTAINER_PREFERENCE = {
+  ANY: "ANY",
+  MP4: "MP4",
+  MKV: "MKV"
+};
+
+export function normalizeStreamContainerPreference(value) {
+  const preference = String(value || "").trim().toUpperCase();
+  return STREAM_CONTAINER_PREFERENCE[preference] || STREAM_CONTAINER_PREFERENCE.ANY;
+}
+
+export function getStreamContainer(stream = {}) {
+  const raw = stream?.raw || {};
+  const evidence = [
+    stream?.mimeType, raw?.mimeType, stream?.sourceType, raw?.sourceType,
+    stream?.type, raw?.type, stream?.behaviorHints?.filename,
+    raw?.behaviorHints?.filename, stream?.filename, raw?.filename,
+    stream?.url, raw?.url
+  ].map((value) => String(value || "").toLowerCase()).join(" ");
+  if (/\bvideo\/(x-)?matroska\b|\.mkv(?:[?#\s]|$)|\bmatroska\b/.test(evidence)) {
+    return STREAM_CONTAINER_PREFERENCE.MKV;
+  }
+  if (/\bvideo\/mp4\b|\.mp4(?:[?#\s]|$)|\bm4v\b/.test(evidence)) {
+    return STREAM_CONTAINER_PREFERENCE.MP4;
+  }
+  return "";
+}
+
+// Signed/proxied links may not expose an extension. When no matching source is
+// identified, preserve the original list instead of making the title fail.
+export function preferStreamsByContainer(streams, preference) {
+  const list = Array.isArray(streams) ? streams.filter(Boolean) : [];
+  const wanted = normalizeStreamContainerPreference(preference);
+  if (wanted === STREAM_CONTAINER_PREFERENCE.ANY) return list;
+  const matches = list.filter((stream) => getStreamContainer(stream) === wanted);
+  return matches.length ? matches : list;
+}
+
 function normalizeMode(value) {
   const mode = String(value || "")
     .trim()
@@ -179,13 +217,16 @@ export function selectAutoPlayStream(streams, options = {}) {
     options.selectedPlugins instanceof Set
       ? options.selectedPlugins
       : new Set(Array.isArray(options.selectedPlugins) ? options.selectedPlugins : []);
-  const candidates = scopeStreamsBySource(list, source, installedAddonNames).filter((stream) => {
+  const candidates = preferStreamsByContainer(
+    scopeStreamsBySource(list, source, installedAddonNames).filter((stream) => {
     const addonName = String(stream?.addonName || "");
     const isAddonStream = installedAddonNames.has(addonName);
     return isAddonStream
       ? !selectedAddons.size || selectedAddons.has(addonName)
       : !selectedPlugins.size || selectedPlugins.has(addonName);
-  });
+    }),
+    options.containerPreference
+  );
   if (!candidates.length) {
     return null;
   }

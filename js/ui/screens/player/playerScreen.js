@@ -28,7 +28,10 @@ import { PlayerSettingsStore } from "../../../data/local/playerSettingsStore.js"
 import { StreamBadgeSettingsStore } from "../../../data/local/streamBadgeSettingsStore.js";
 import { matchStreamBadges } from "../../../core/streams/streamBadgeRules.js";
 import { hasReleaseToken } from "../../../core/streams/releaseToken.js";
-import { selectAutoPlayStream } from "../../../core/streams/streamAutoPlaySelector.js";
+import {
+  preferStreamsByContainer,
+  selectAutoPlayStream
+} from "../../../core/streams/streamAutoPlaySelector.js";
 import { metaRepository } from "../../../data/repository/metaRepository.js";
 import { I18n } from "../../../i18n/index.js";
 import { Environment } from "../../../platform/environment.js";
@@ -7604,6 +7607,7 @@ export const PlayerScreen = {
       installedAddonNames,
       selectedAddons: shouldAutoSelectInManualMode ? [] : settings.streamAutoPlaySelectedAddons,
       selectedPlugins: shouldAutoSelectInManualMode ? [] : settings.streamAutoPlaySelectedPlugins,
+      containerPreference: settings.streamContainerPreference,
       preferredBingeGroup,
       preferBingeGroupInSelection: preferBingeGroup,
       bingeGroupOnly: Boolean(options.bingeGroupOnly || bingeGroupOnlyManualMode)
@@ -17254,7 +17258,11 @@ export const PlayerScreen = {
       episode: this.params?.episode == null ? null : Number(this.params.episode)
     };
 
-    const scored = streams
+    const preferredStreams = preferStreamsByContainer(
+      streams,
+      PlayerSettingsStore.get().streamContainerPreference
+    );
+    const scored = preferredStreams
       .filter((stream) =>
         Boolean(
           stream?.url ||

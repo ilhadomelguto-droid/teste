@@ -139,6 +139,7 @@ export async function resolveAutoPlayStream({
       installedAddonNames,
       selectedAddons: settings.streamAutoPlaySelectedAddons,
       selectedPlugins: settings.streamAutoPlaySelectedPlugins,
+      containerPreference: settings.streamContainerPreference,
       preferredBingeGroup,
       preferBingeGroupInSelection: Boolean(preferredBingeGroup)
     });

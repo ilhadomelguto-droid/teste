@@ -1130,6 +1130,7 @@ const FEATURE_ADAPTERS = {
           ? settings.streamAutoPlaySelectedPlugins
           : [],
         stream_auto_play_regex: String(settings.streamAutoPlayRegex || ""),
+        stream_container_preference: String(settings.streamContainerPreference || "ANY"),
         stream_auto_play_timeout_seconds: Math.max(
           0,
           Math.trunc(Number(settings.streamAutoPlayTimeoutSeconds ?? 3) || 0)
@@ -1200,7 +1201,7 @@ const FEATURE_ADAPTERS = {
           raw.subtitle_vertical_offset
         );
       }
-      ["stream_auto_play_mode", "stream_auto_play_source", "stream_auto_play_regex"].forEach(
+      ["stream_auto_play_mode", "stream_auto_play_source", "stream_auto_play_regex", "stream_container_preference"].forEach(
         (key) => {
           if (raw[key] != null) {
             projected[key] = String(raw[key]);
@@ -1417,6 +1418,9 @@ const FEATURE_ADAPTERS = {
       }
       if (raw.stream_auto_play_regex != null) {
         partial.streamAutoPlayRegex = String(raw.stream_auto_play_regex);
+      }
+      if (raw.stream_container_preference != null) {
+        partial.streamContainerPreference = String(raw.stream_container_preference);
       }
       if (numberOrNull(raw.stream_auto_play_timeout_seconds) != null) {
         partial.streamAutoPlayTimeoutSeconds = Math.max(
