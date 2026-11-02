@@ -73,6 +73,17 @@ function createOwnerResponseError(response, message) {
   return error;
 }
 
+async function withSharedRefreshLock(action) {
+  // Web Locks abrange abas e a PWA instalável do mesmo domínio. Ao manter o
+  // helper fora da instância, bundles antigos e novos não misturam protótipos
+  // durante a atualização do service worker.
+  const locks = globalThis.navigator?.locks;
+  if (locks?.request) {
+    return locks.request("streamtv-session-refresh", { mode: "exclusive" }, action);
+  }
+  return action();
+}
+
 class AuthManagerClass {
   constructor() {
     this.state = AuthState.LOADING;
@@ -289,17 +300,6 @@ class AuthManagerClass {
     }, delayMs);
   }
 
-  async withSharedRefreshLock(action) {
-    // Web Locks abrange abas e a PWA instalável do mesmo domínio. Sem isto,
-    // dois contextos podiam gastar o mesmo refresh token rotativo e a API o
-    // tratava corretamente como reutilização suspeita, encerrando a sessão.
-    const locks = globalThis.navigator?.locks;
-    if (locks?.request) {
-      return locks.request("streamtv-session-refresh", { mode: "exclusive" }, action);
-    }
-    return action();
-  }
-
   async refreshSessionIfNeeded({ force = false } = {}) {
     if (this.refreshPromise) {
       return this.refreshPromise;
@@ -316,7 +316,7 @@ class AuthManagerClass {
       return true;
     }
 
-    this.refreshPromise = this.withSharedRefreshLock(async () => {
+    this.refreshPromise = withSharedRefreshLock(async () => {
       try {
         // Depois de aguardar o lock, outra aba/PWA pode ter terminado o
         // refresh. Neste caso usamos a sessão nova em vez de reutilizar o
