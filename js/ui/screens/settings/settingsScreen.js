@@ -960,11 +960,6 @@ const SECTION_META = [
     labelKey: "settings_advanced",
     subtitleKey: "settings_advanced_subtitle"
   },
-  {
-    id: "about",
-    labelKey: "settings.sections.about.label",
-    subtitleKey: "settings.sections.about.subtitle"
-  }
 ];
 
 // The index reads as one long list otherwise: eleven rows with nothing to say
@@ -993,7 +988,7 @@ const SECTION_GROUPS = [
     key: "system",
     labelKey: "settings_group_system",
     fallback: "System",
-    ids: ["advanced", "about"]
+    ids: ["advanced"]
   }
 ];
 
@@ -1009,8 +1004,7 @@ const SECTION_ACCENTS = {
   trakt: "239 68 68",
   playback: "167 139 250",
   downloads: "34 197 94",
-  advanced: "148 163 184",
-  about: "148 163 184"
+  advanced: "148 163 184"
 };
 
 const SECTION_ICONS = {
@@ -2405,8 +2399,7 @@ function normalizeExpandedSections(value) {
   const source = value && typeof value === "object" ? value : {};
   return {
     layout: normalizeExpandedState("layout", source.layout),
-    playback: normalizeExpandedState("playback", source.playback),
-    about: normalizeExpandedState("about", source.about)
+    playback: normalizeExpandedState("playback", source.playback)
   };
 }
 
@@ -9609,7 +9602,7 @@ export const SettingsScreen = {
     if (section.id === "downloads") return this.renderDownloadsSection(model);
     if (section.id === "trakt") return this.renderTraktLauncher(model);
     if (section.id === "advanced") return this.renderAdvancedSection(model);
-    return this.renderAboutSection(model);
+    return this.renderAppearanceSection(model);
   },
 
   async render({ refreshModel = true } = {}) {
