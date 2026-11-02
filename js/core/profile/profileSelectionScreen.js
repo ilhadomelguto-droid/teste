@@ -5,6 +5,7 @@ import { ProfileSyncService } from "../../core/profile/profileSyncService.js";
 import { StartupSyncService } from "../../core/profile/startupSyncService.js";
 import { ScreenUtils } from "../../ui/navigation/screen.js";
 import { AvatarRepository } from "../../data/remote/supabase/avatarRepository.js";
+import { BUILT_IN_PROFILE_AVATARS } from "../../data/local/profileAvatarCatalog.js";
 import { I18n } from "../../i18n/index.js";
 import { NuvioDialog } from "../../ui/components/nuvioDialog.js";
 import { renderBackButtonIcon } from "../../ui/components/backButtonIcon.js";
@@ -300,6 +301,16 @@ function categoryLabel(category) {
       return "TV";
     case "gaming":
       return "Gaming";
+    case "monstros":
+      return "Monstros";
+    case "princesas":
+      return "Princesas";
+    case "príncipes":
+      return "Príncipes";
+    case "heróis":
+      return "Heróis";
+    case "profissões":
+      return "Profissões";
     default:
       return String(category || "Other").replace(/^./, (match) => match.toUpperCase());
   }
@@ -412,7 +423,10 @@ export const ProfileSelectionScreen = {
     this.pinTransitionTimer = null;
     this.pinTransitionCallback = null;
     this.suppressedFocusClick = null;
-    this.avatarCatalog = [];
+    // Do not wait on a remote catalogue before showing editable profiles.
+    // The StreamTV collection is bundled with the app and gets merged with
+    // any optional remote artwork once that request finishes.
+    this.avatarCatalog = [...BUILT_IN_PROFILE_AVATARS];
     this.browserAvatarUrls = new Map();
     this.lastKeyboardActivation = null;
     this.isBrowserKeyboardFocusVisible = false;

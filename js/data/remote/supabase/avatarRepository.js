@@ -1,9 +1,23 @@
 import { AVATAR_PUBLIC_BASE_URL, SUPABASE_URL } from "../../../config.js";
 import { SupabaseApi } from "./supabaseApi.js";
+import { BUILT_IN_PROFILE_AVATARS } from "../../local/profileAvatarCatalog.js";
 
 const AVATAR_BUCKET = "avatars";
 
 let cachedCatalog = null;
+
+function mergeCatalog(remoteCatalog = []) {
+  const byId = new Map();
+  // Keep server-provided entries when their ids happen to overlap, while the
+  // built-in StreamTV collection is always available offline.
+  [...BUILT_IN_PROFILE_AVATARS, ...remoteCatalog].forEach((avatar) => {
+    if (avatar?.id && avatar?.imageUrl) byId.set(avatar.id, avatar);
+  });
+  return Array.from(byId.values()).sort((left, right) => {
+    const categoryOrder = String(left.category || "").localeCompare(String(right.category || ""));
+    return categoryOrder || Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
+  });
+}
 
 function avatarImageUrl(storagePath = "") {
   const normalizedPath = String(storagePath || "")
@@ -40,10 +54,16 @@ export const AvatarRepository = {
       return cachedCatalog;
     }
 
-    const response = await SupabaseApi.rpc("get_avatar_catalog", {}, false);
-    cachedCatalog = (Array.isArray(response) ? response : [])
-      .map((row) => mapAvatar(row))
-      .filter((avatar) => avatar.id && avatar.imageUrl);
+    try {
+      const response = await SupabaseApi.rpc("get_avatar_catalog", {}, false);
+      const remoteCatalog = (Array.isArray(response) ? response : [])
+        .map((row) => mapAvatar(row))
+        .filter((avatar) => avatar.id && avatar.imageUrl);
+      cachedCatalog = mergeCatalog(remoteCatalog);
+    } catch (_error) {
+      // Avatar artwork must never make profile creation depend on Supabase.
+      cachedCatalog = mergeCatalog();
+    }
     return cachedCatalog;
   },
 
