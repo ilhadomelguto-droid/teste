@@ -381,7 +381,7 @@ class AuthManagerClass {
       } finally {
         this.refreshPromise = null;
       }
-    })();
+    });
 
     return this.refreshPromise;
   }
