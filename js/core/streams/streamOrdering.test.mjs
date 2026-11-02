@@ -42,3 +42,16 @@ test("source names and raw streams retain deterministic configured ordering when
   assert.deepEqual(orderStreamsByAddonOrder(streams, chips).map((stream) => stream.id), ["raw-unknown", "raw-uncached"]);
   assert.deepEqual(orderSourceNames(streams, chips), ["First", "Second", "Empty"]);
 });
+
+test("Google Drive relay is kept first even when StreamTV exposes the same addon name", () => {
+  const streams = [
+    { ...addon("streamtv", "StreamTV · Direto", 0, "telegram"), url: "https://example.test/play/local/123" },
+    { ...addon("streamtv", "StreamTV · Direto", 0, "gdrive"), url: "https://example.test/stremio/token/play/gdrive/456" },
+    { ...addon("streamtv", "StreamTV · Direto", 0, "telegram-720"), url: "https://example.test/play/local/789" }
+  ];
+  assert.deepEqual(orderStreamsByAddonOrder(streams).map((stream) => stream.id), [
+    "gdrive",
+    "telegram",
+    "telegram-720"
+  ]);
+});

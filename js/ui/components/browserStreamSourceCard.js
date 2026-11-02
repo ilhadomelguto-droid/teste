@@ -10,6 +10,10 @@ import {
   normalizeStreamBadgeChipColor
 } from "../../core/streams/streamBadgeRules.js";
 import { I18n } from "../../i18n/index.js";
+import {
+  getStreamSourceDisplayName,
+  isGoogleDriveStream
+} from "../../core/streams/streamSourcePresentation.js";
 
 const STREAM_BADGE_LIMIT = 9;
 
@@ -74,6 +78,7 @@ function normalizeStreamInput(stream = {}) {
 }
 
 function getSourceHeadline(stream = {}) {
+  if (isGoogleDriveStream(stream)) return "Veloz";
   const primary = [stream.name, stream.title, stream.description].find((value) =>
     String(value || "").trim()
   );
@@ -172,7 +177,7 @@ export function normalizeSourceForDisplay(
   const headline = getSourceHeadline(source);
   const quality = getSourceQuality(source);
   const badges = renderBadges(source, badgeSettings, streamBadgesEnabled);
-  const addonName = String(source.addonName || "Addon").trim() || "Addon";
+  const addonName = getStreamSourceDisplayName(source);
   const addonLogoUrl =
     normalizeAddonLogoUrl(source.addonLogo) || resolveAddonLogo(addonName, addonLogoLookup);
   const displayAddonLogoUrl = getCachedAddonLogoDisplayUrl(addonLogoUrl) || addonLogoUrl;

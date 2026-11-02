@@ -31,7 +31,11 @@ function streamSourceGroupKey(stream = {}, index = 0) {
         stream.addonBaseUrl ||
         origin.addonName ||
         stream.addonName;
-  return `${kind}:${normalizedName(identity) || `index-${index}`}`;
+  // StreamTV intentionally exposes several internal providers with the same
+  // addon name. Keep the fast Google Drive relay as its own group so it can
+  // be prioritised instead of being buried in that shared group.
+  const provider = isGoogleDriveStream(stream) ? "gdrive" : "default";
+  return `${kind}:${normalizedName(identity) || `index-${index}`}:${provider}`;
 }
 
 function buildAddonRanks(streams, sourceChips) {
@@ -84,6 +88,8 @@ export function orderStreamsByAddonOrder(
     }
   });
   const groupRank = (group) => {
+    const priority = streamSourcePriority(group.items[0]);
+    if (priority < 0) return { bucket: -1, rank: priority };
     if (group.isDirectDebrid) return { bucket: 0, rank: 0 };
     const addonName = normalizedName(group.items[0]?.addonName);
     if (addonRanks.has(addonName)) {
@@ -120,3 +126,5 @@ export function orderSourceNames(streams = [], sourceChips = [], { isDirectDebri
     });
   return ordered;
 }
+import { isGoogleDriveStream, streamSourcePriority } from "./streamSourcePresentation.js";
+
