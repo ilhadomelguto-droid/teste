@@ -45,6 +45,8 @@ export const PlayerController = {
   startupPresentationAudioMuted: false,
   desiredPlaybackRate: 1,
   videoElementListeners: [],
+  gdrivePlaybackControlUrl: "",
+  gdrivePlaybackHeartbeatTimer: null,
   markPlaybackWatched,
   externalProgressHandoff: null,
 
@@ -68,6 +70,84 @@ export const PlayerController = {
       return false;
     }
     return Boolean(this.video);
+  },
+
+  getGdrivePlaybackControlUrl(sourceUrl = "") {
+    try {
+      const url = new URL(String(sourceUrl || ""), globalThis.location?.href);
+      if (
+        !url.searchParams.get("pt") ||
+        !/^\/stremio\/[^/]+\/play\/gdrive\/[^/]+$/i.test(url.pathname)
+      ) {
+        return "";
+      }
+      url.pathname = `${url.pathname}/control`;
+      return url.toString();
+    } catch (_) {
+      return "";
+    }
+  },
+
+  clearGdrivePlaybackHeartbeat() {
+    if (this.gdrivePlaybackHeartbeatTimer) {
+      clearInterval(this.gdrivePlaybackHeartbeatTimer);
+      this.gdrivePlaybackHeartbeatTimer = null;
+    }
+  },
+
+  sendGdrivePlaybackControl(action, { keepalive = false } = {}) {
+    const controlUrl = this.gdrivePlaybackControlUrl;
+    if (!controlUrl || !action) return Promise.resolve(false);
+    let playbackToken = "";
+    try {
+      playbackToken = new URL(controlUrl).searchParams.get("pt") || "";
+    } catch (_) {
+      return Promise.resolve(false);
+    }
+    if (!playbackToken) return Promise.resolve(false);
+    return fetch(controlUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, pt: playbackToken }),
+      keepalive
+    })
+      .then((response) => response.ok)
+      .catch(() => false);
+  },
+
+  startGdrivePlaybackHeartbeat() {
+    if (
+      !this.gdrivePlaybackControlUrl ||
+      this.gdrivePlaybackHeartbeatTimer ||
+      this.video?.ended ||
+      this.video?.error
+    )
+      return;
+    this.sendGdrivePlaybackControl("heartbeat");
+    this.gdrivePlaybackHeartbeatTimer = setInterval(() => {
+      this.sendGdrivePlaybackControl("heartbeat");
+    }, 60_000);
+  },
+
+  releaseGdrivePlayback({ keepalive = false } = {}) {
+    this.clearGdrivePlaybackHeartbeat();
+    const controlUrl = this.gdrivePlaybackControlUrl;
+    this.gdrivePlaybackControlUrl = "";
+    if (!controlUrl) return Promise.resolve(false);
+    let playbackToken = "";
+    try {
+      playbackToken = new URL(controlUrl).searchParams.get("pt") || "";
+    } catch (_) {
+      return Promise.resolve(false);
+    }
+    return fetch(controlUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "release", pt: playbackToken }),
+      keepalive
+    })
+      .then((response) => response.ok)
+      .catch(() => false);
   },
 
   emitVideoEvent(eventName, detail = null) {
@@ -1575,6 +1655,7 @@ export const PlayerController = {
 
     listen("ended", () => {
       this.isPlaying = false;
+      this.releaseGdrivePlayback({ keepalive: true });
       const context = this.createProgressContext();
       const durationMs = Math.floor(this.getDurationSeconds() * 1000);
       const completedMs =
@@ -1582,8 +1663,15 @@ export const PlayerController = {
       this.flushProgress(completedMs, durationMs > 0 ? durationMs : completedMs, false, context);
     });
 
+    // A reprodução do Drive já atualiza a vaga através dos próprios Ranges.
+    // Durante pausa, porém, não há novos bytes; o heartbeat preserva a vaga
+    // até o usuário retomar ou encerrar explicitamente o player.
+    listen("play", () => this.startGdrivePlaybackHeartbeat());
+    listen("pause", () => this.startGdrivePlaybackHeartbeat());
+
     listen("error", (e) => {
       this.isPlaying = false;
+      this.releaseGdrivePlayback({ keepalive: true });
       const customErrorCode = Number(e?.detail?.mediaErrorCode || 0);
       const nativeErrorCode = Number(this.video?.error?.code || 0);
       const mediaErrorCode = customErrorCode || nativeErrorCode || this.getLastPlaybackErrorCode();
@@ -1653,6 +1741,7 @@ export const PlayerController = {
       this.lifecycleFlushHandler = () => {
         this.flushCurrentProgress({ forceCloudSync: true });
         this.scrobbleTerminalReport();
+        this.releaseGdrivePlayback({ keepalive: true });
       };
       this.visibilityFlushHandler = () => {
         if (document.visibilityState === "hidden") {
@@ -1687,6 +1776,7 @@ export const PlayerController = {
     if (!this.video) return;
 
     const requestedUrl = String(url || "").trim();
+    this.releaseGdrivePlayback();
     const playToken = Number(this.playRequestToken || 0) + 1;
     this.playRequestToken = playToken;
 
@@ -1719,6 +1809,7 @@ export const PlayerController = {
     this.currentStreamIdentity = streamIdentity || null;
     this.currentPlaybackIsOffline = Boolean(offlinePlayback);
     this.currentPlaybackUrl = requestedUrl;
+    this.gdrivePlaybackControlUrl = this.getGdrivePlaybackControlUrl(requestedUrl);
     this.currentPlaybackHeaders = { ...(requestHeaders || {}) };
     this.currentPlaybackMediaSourceType = this.resolveRuntimeSourceType(mediaSourceType);
     this.lastPlaybackErrorCode = 0;
@@ -1867,6 +1958,7 @@ export const PlayerController = {
     if (!this.video) return;
 
     this.playRequestToken = Number(this.playRequestToken || 0) + 1;
+    this.releaseGdrivePlayback({ keepalive: true });
     this.setStartupPresentationAudioMuted(false);
     const flushPromise = flushProgress
       ? this.flushCurrentProgress({ forceCloudSync, allowCloudSync })
