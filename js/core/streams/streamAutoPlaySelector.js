@@ -39,7 +39,12 @@ export function getStreamContainer(stream = {}) {
   if (/\bvideo\/mp4\b|\.mp4(?:[?#\s]|$)|\bm4v\b/.test(evidence)) {
     return STREAM_CONTAINER_PREFERENCE.MP4;
   }
-  return "";
+  // StreamTV relays Telegram and Google Drive through signed routes such as
+  // /play/local/:id and /play/gdrive/:id. Those routes intentionally hide
+  // their filename, but serve the MP4 variant. The player already treats an
+  // undeclared direct video as video/mp4; keep this classification aligned so
+  // selecting MP4 does not erase these valid sources from the picker.
+  return STREAM_CONTAINER_PREFERENCE.MP4;
 }
 
 // This is intentionally strict: when the person selects MP4 or MKV, the
