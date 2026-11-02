@@ -80,6 +80,7 @@ class AuthManagerClass {
     this.cachedEffectiveUserId = null;
     this.cachedEffectiveUserSourceUserId = null;
     this.refreshPromise = null;
+    this.sessionRefreshTimer = null;
     this.lastRefreshFailureKind = null;
     this.sessionGeneration = 0;
   }
@@ -194,6 +195,7 @@ class AuthManagerClass {
 
   async signOut() {
     this.sessionGeneration += 1;
+    this.clearSessionRefreshTimer();
     const token = SessionStore.accessToken;
     if (usesStreamTvAuth() && token) {
       // Logout is best effort: a local sign-out must always work offline.
@@ -257,6 +259,45 @@ class AuthManagerClass {
     } catch (_) {}
     this.cachedEffectiveUserId = ownerId;
     this.setState(AuthState.AUTHENTICATED);
+    this.scheduleSessionRefresh();
+  }
+
+  clearSessionRefreshTimer() {
+    if (this.sessionRefreshTimer) {
+      clearTimeout(this.sessionRefreshTimer);
+      this.sessionRefreshTimer = null;
+    }
+  }
+
+  scheduleSessionRefresh() {
+    this.clearSessionRefreshTimer();
+    if (!usesStreamTvAuth() || !SessionStore.refreshToken || !SessionStore.accessToken) return;
+
+    const payload = decodeJwtPayload(SessionStore.accessToken);
+    const expiryMs = Number(payload?.exp || 0) * 1000;
+    // Renovar um minuto antes evita que uma tela ociosa descubra a expiração
+    // só na próxima ação do usuário. O mínimo impede loop caso o relógio local
+    // esteja adiantado.
+    const delayMs =
+      Number.isFinite(expiryMs) && expiryMs > 0
+        ? Math.max(15_000, expiryMs - Date.now() - 60_000)
+        : 10 * 60_000;
+    this.sessionRefreshTimer = setTimeout(() => {
+      this.refreshSessionIfNeeded({ force: true })
+        .catch(() => false)
+        .finally(() => this.scheduleSessionRefresh());
+    }, delayMs);
+  }
+
+  async withSharedRefreshLock(action) {
+    // Web Locks abrange abas e a PWA instalável do mesmo domínio. Sem isto,
+    // dois contextos podiam gastar o mesmo refresh token rotativo e a API o
+    // tratava corretamente como reutilização suspeita, encerrando a sessão.
+    const locks = globalThis.navigator?.locks;
+    if (locks?.request) {
+      return locks.request("streamtv-session-refresh", { mode: "exclusive" }, action);
+    }
+    return action();
   }
 
   async refreshSessionIfNeeded({ force = false } = {}) {
@@ -275,13 +316,34 @@ class AuthManagerClass {
       return true;
     }
 
-    this.refreshPromise = (async () => {
+    this.refreshPromise = this.withSharedRefreshLock(async () => {
       try {
+        // Depois de aguardar o lock, outra aba/PWA pode ter terminado o
+        // refresh. Neste caso usamos a sessão nova em vez de reutilizar o
+        // refresh token antigo.
+        const latestAccessToken = SessionStore.accessToken;
+        const latestRefreshToken = SessionStore.refreshToken;
+        if (
+          latestRefreshToken &&
+          latestRefreshToken !== refreshToken &&
+          latestAccessToken &&
+          !isJwtExpired(latestAccessToken)
+        ) {
+          this.lastRefreshFailureKind = null;
+          this.scheduleSessionRefresh();
+          return true;
+        }
+        if (!force && latestAccessToken && !isJwtExpired(latestAccessToken)) {
+          this.lastRefreshFailureKind = null;
+          this.scheduleSessionRefresh();
+          return true;
+        }
         if (usesStreamTvAuth()) {
-          const data = await streamTvRefresh(refreshToken);
+          const data = await streamTvRefresh(latestRefreshToken || refreshToken);
           SessionStore.accessToken = data.accessToken;
           SessionStore.refreshToken = data.refreshToken;
           this.lastRefreshFailureKind = null;
+          this.scheduleSessionRefresh();
           return true;
         }
         const res = await fetchSupabaseAuth("/auth/v1/token?grant_type=refresh_token", {
@@ -306,6 +368,7 @@ class AuthManagerClass {
           SessionStore.refreshToken = data.refresh_token;
         }
         this.lastRefreshFailureKind = null;
+        this.scheduleSessionRefresh();
         return true;
       } catch (error) {
         console.warn("Session refresh failed", error);
