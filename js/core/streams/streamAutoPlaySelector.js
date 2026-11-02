@@ -27,10 +27,14 @@ export function normalizeStreamContainerPreference(value) {
 
 export function getStreamContainer(stream = {}) {
   const raw = stream?.raw || {};
+  const presentation = stream?.streamPresentation || raw?.streamPresentation || {};
   const evidence = [
     stream?.mimeType, raw?.mimeType, stream?.sourceType, raw?.sourceType,
     stream?.type, raw?.type, stream?.behaviorHints?.filename,
     raw?.behaviorHints?.filename, stream?.filename, raw?.filename,
+    stream?.title, raw?.title, stream?.name, raw?.name, stream?.label,
+    raw?.label, stream?.description, raw?.description,
+    presentation?.container, presentation?.codec, presentation?.encode,
     stream?.url, raw?.url
   ].map((value) => String(value || "").toLowerCase()).join(" ");
   if (/\bvideo\/(x-)?matroska\b|\.mkv(?:[?#\s]|$)|\bmatroska\b/.test(evidence)) {
