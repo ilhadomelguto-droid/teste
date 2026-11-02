@@ -43,6 +43,11 @@ test("profile avatar cache reuses a durable image on an offline cold start", asy
 
     const { resolveBrowserProfileAvatar } = await import(`./browserProfileAvatarCache.js?test=${Date.now()}`);
     const profile = { id: "2", avatarId: "anime-1" };
+    assert.equal(
+      await resolveBrowserProfileAvatar(profile, "assets/avatars/monster-aqua.jpg"),
+      "assets/avatars/monster-aqua.jpg"
+    );
+    assert.equal(fetches, 0);
     assert.equal(await resolveBrowserProfileAvatar(profile, "https://cdn.nuvio.test/avatars/a.png?temporary=1"), "blob:avatar/6");
     assert.equal(fetches, 1);
 

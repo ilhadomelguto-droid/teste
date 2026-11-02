@@ -653,6 +653,10 @@ export const ProfileSelectionScreen = {
   renderProfileCard(profile) {
     const avatarUrl =
       this.browserAvatarUrls?.get(String(profile.id)) ||
+      // The browser cache is only needed for remote artwork. Local bundled
+      // avatars must remain visible immediately while that optional cache is
+      // warming or unavailable.
+      resolveProfileAvatarUrl(profile, (avatarId) => this.getAvatarImageUrl(avatarId)) ||
       "";
     const isDesktopActive =
       String(profile.id) === String(this.activeProfileId);

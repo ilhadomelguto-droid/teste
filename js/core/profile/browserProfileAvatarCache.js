@@ -95,7 +95,14 @@ export async function resolveBrowserProfileAvatar(
   sourceUrl = "",
   { allowNetwork = true } = {}
 ) {
-  if (!Platform.isBrowser()) return String(sourceUrl || "").trim();
+  const rawSourceUrl = String(sourceUrl || "").trim();
+  if (!Platform.isBrowser()) return rawSourceUrl;
+  // Bundled artwork is already served by the application and the browser's
+  // normal asset cache. It has no absolute HTTP identity for the remote-image
+  // cache, so returning it directly is essential for built-in profile avatars.
+  if (/^(?:\.\/)?assets\//i.test(rawSourceUrl) || /^\/assets\//i.test(rawSourceUrl)) {
+    return rawSourceUrl;
+  }
   const identities = candidateIdentities(profile, sourceUrl);
   for (const identity of identities) {
     const cached = await getCachedObjectUrl(identity).catch(() => "");
