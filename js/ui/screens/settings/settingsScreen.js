@@ -946,11 +946,6 @@ const SECTION_META = [
     subtitleKey: "settings.sections.playback.subtitle"
   },
   {
-    id: "downloads",
-    label: "Downloads",
-    subtitle: "Offline storage, queue, and cleanup"
-  },
-  {
     id: "trakt",
     labelKey: "settings_tracking_title",
     subtitleKey: "settings_tracking_subtitle"
@@ -982,7 +977,7 @@ const SECTION_GROUPS = [
     key: "watching",
     labelKey: "settings_group_watching",
     fallback: "Watching",
-    ids: ["playback", "downloads"]
+    ids: ["playback"]
   },
   {
     key: "system",
@@ -1003,7 +998,6 @@ const SECTION_ACCENTS = {
   streams: "245 158 11",
   trakt: "239 68 68",
   playback: "167 139 250",
-  downloads: "34 197 94",
   advanced: "148 163 184"
 };
 
