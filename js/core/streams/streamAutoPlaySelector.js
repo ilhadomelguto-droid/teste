@@ -37,7 +37,7 @@ export function getStreamContainer(stream = {}) {
     presentation?.container, presentation?.codec, presentation?.encode,
     stream?.url, raw?.url
   ].map((value) => String(value || "").toLowerCase()).join(" ");
-  if (/\bvideo\/(x-)?matroska\b|\.mkv(?:[?#\s]|$)|\bmatroska\b/.test(evidence)) {
+  if (/\bvideo\/(x-)?matroska\b|\.mkv(?:[?#\s]|$)|\bmkv\b|\bmatroska\b/.test(evidence)) {
     return STREAM_CONTAINER_PREFERENCE.MKV;
   }
   if (/\bvideo\/mp4\b|\.mp4(?:[?#\s]|$)|\bm4v\b/.test(evidence)) {
