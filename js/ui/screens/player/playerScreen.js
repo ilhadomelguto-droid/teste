@@ -29,7 +29,9 @@ import { StreamBadgeSettingsStore } from "../../../data/local/streamBadgeSetting
 import { matchStreamBadges } from "../../../core/streams/streamBadgeRules.js";
 import { hasReleaseToken } from "../../../core/streams/releaseToken.js";
 import {
-  preferStreamsByContainer,
+  filterStreamsByContainer,
+  getStreamContainer,
+  normalizeStreamContainerPreference,
   selectAutoPlayStream
 } from "../../../core/streams/streamAutoPlaySelector.js";
 import { metaRepository } from "../../../data/repository/metaRepository.js";
@@ -2064,9 +2066,12 @@ export const PlayerScreen = {
     this.hasPrecomputedStreamCandidates = Boolean(
       Array.isArray(params.streamCandidates) && params.streamCandidates.length
     );
-    this.streamCandidates = this.normalizeStreamCandidates(
-      Array.isArray(params.streamCandidates) ? params.streamCandidates : []
+    const containerPreference = normalizeStreamContainerPreference(
+      PlayerSettingsStore.get().streamContainerPreference
     );
+    this.streamCandidates = filterStreamsByContainer(this.normalizeStreamCandidates(
+      Array.isArray(params.streamCandidates) ? params.streamCandidates : []
+    ), containerPreference);
     const preferredStreamId = String(params?.preferredStreamId || "").trim();
     const preferredStreamCandidate = preferredStreamId
       ? this.streamCandidates.find((stream) => String(stream?.id || "") === preferredStreamId) ||
@@ -2074,13 +2079,19 @@ export const PlayerScreen = {
       : null;
     const initialStreamCandidate =
       preferredStreamCandidate || this.selectBestStreamCandidate(this.streamCandidates);
+    const routeUrl = String(params.streamUrl || "").trim();
+    const routeUrlMatchesContainer =
+      containerPreference === "ANY" ||
+      !routeUrl ||
+      getStreamContainer({ url: routeUrl }) === containerPreference;
     const initialStreamLocator =
-      params.streamUrl ||
+      (routeUrlMatchesContainer ? routeUrl : "") ||
       initialStreamCandidate?.url ||
       initialStreamCandidate?.externalUrl ||
       null;
     const initialStreamUrl =
-      directPlaybackUrl(params.streamUrl) || streamDirectPlaybackUrl(initialStreamCandidate);
+      (routeUrlMatchesContainer ? directPlaybackUrl(routeUrl) : "") ||
+      streamDirectPlaybackUrl(initialStreamCandidate);
     if (!this.streamCandidates.length && initialStreamLocator) {
       this.streamCandidates = this.normalizeStreamCandidates([
         {
@@ -14323,7 +14334,8 @@ export const PlayerScreen = {
   },
 
   getOrderedStreamCandidates() {
-    return (this.streamCandidates || [])
+    return filterStreamsByContainer(
+      (this.streamCandidates || [])
       .map((stream, index) => ({ stream, index }))
       .sort((left, right) => {
         const leftOrder = Number(left.stream?.addonOrderIndex ?? Number.MAX_SAFE_INTEGER);
@@ -14333,7 +14345,9 @@ export const PlayerScreen = {
         }
         return left.index - right.index;
       })
-      .map((entry) => entry.stream);
+      .map((entry) => entry.stream),
+      PlayerSettingsStore.get().streamContainerPreference
+    );
   },
 
   getFilteredSources(orderedStreams = this.getOrderedStreamCandidates()) {
@@ -17258,7 +17272,7 @@ export const PlayerScreen = {
       episode: this.params?.episode == null ? null : Number(this.params.episode)
     };
 
-    const preferredStreams = preferStreamsByContainer(
+    const preferredStreams = filterStreamsByContainer(
       streams,
       PlayerSettingsStore.get().streamContainerPreference
     );

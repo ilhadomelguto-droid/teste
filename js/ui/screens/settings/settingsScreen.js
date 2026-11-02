@@ -516,8 +516,8 @@ const STREAM_AUTOPLAY_SOURCE_OPTIONS = [
 
 const STREAM_CONTAINER_PREFERENCE_OPTIONS = [
   { id: "ANY", label: "Padrão (qualquer formato)" },
-  { id: "MP4", label: "Preferir MP4" },
-  { id: "MKV", label: "Preferir MKV" }
+  { id: "MP4", label: "Somente MP4" },
+  { id: "MKV", label: "Somente MKV" }
 ];
 
 const STREAM_AUTOPLAY_TIMEOUT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30]
@@ -7936,7 +7936,7 @@ export const SettingsScreen = {
         ${this.renderActionRow({
           focusKey: "playback:streamContainerPreference",
           title: "Formato preferido da fonte",
-          subtitle: "Ao escolher automaticamente, prioriza MP4 ou MKV quando disponível.",
+          subtitle: "Filtra as fontes: reproduz apenas o formato escolhido.",
           value: labelForOptionId(
             STREAM_CONTAINER_PREFERENCE_OPTIONS,
             model.player.streamContainerPreference,

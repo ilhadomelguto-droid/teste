@@ -9,6 +9,7 @@ import { PlayerSettingsStore } from "../../../data/local/playerSettingsStore.js"
 import { StreamPreferencesStore } from "../../../data/local/streamPreferencesStore.js";
 import {
   selectAutoPlayStream,
+  filterStreamsByContainer,
   isAutoPlayEffectivelyEnabled,
   collectInstalledAddonNames,
   resolvePreferredBingeGroup
@@ -1502,19 +1503,23 @@ export const StreamScreen = {
       cache &&
       cache.streams === this.streams &&
       cache.chips === this.sourceChips &&
-      cache.filter === filter
+      cache.filter === filter &&
+      cache.containerPreference === PlayerSettingsStore.get().streamContainerPreference
     ) {
       return cache.result;
     }
     const orderedStreams = sortStreamsByAddonOrder(this.streams, this.sourceChips);
-    const result =
+    const result = filterStreamsByContainer(
       filter === "all"
         ? orderedStreams
-        : orderedStreams.filter((stream) => stream.addonName === filter);
+        : orderedStreams.filter((stream) => stream.addonName === filter),
+      PlayerSettingsStore.get().streamContainerPreference
+    );
     this._filteredStreamsCache = {
       streams: this.streams,
       chips: this.sourceChips,
       filter,
+      containerPreference: PlayerSettingsStore.get().streamContainerPreference,
       result
     };
     return result;

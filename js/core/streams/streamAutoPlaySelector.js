@@ -42,15 +42,16 @@ export function getStreamContainer(stream = {}) {
   return "";
 }
 
-// Signed/proxied links may not expose an extension. When no matching source is
-// identified, preserve the original list instead of making the title fail.
-export function preferStreamsByContainer(streams, preference) {
+// This is intentionally strict: when the person selects MP4 or MKV, the
+// other container must never be auto-selected as a fallback.
+export function filterStreamsByContainer(streams, preference) {
   const list = Array.isArray(streams) ? streams.filter(Boolean) : [];
   const wanted = normalizeStreamContainerPreference(preference);
   if (wanted === STREAM_CONTAINER_PREFERENCE.ANY) return list;
-  const matches = list.filter((stream) => getStreamContainer(stream) === wanted);
-  return matches.length ? matches : list;
+  return list.filter((stream) => getStreamContainer(stream) === wanted);
 }
+
+export const preferStreamsByContainer = filterStreamsByContainer;
 
 function normalizeMode(value) {
   const mode = String(value || "")
@@ -217,7 +218,7 @@ export function selectAutoPlayStream(streams, options = {}) {
     options.selectedPlugins instanceof Set
       ? options.selectedPlugins
       : new Set(Array.isArray(options.selectedPlugins) ? options.selectedPlugins : []);
-  const candidates = preferStreamsByContainer(
+  const candidates = filterStreamsByContainer(
     scopeStreamsBySource(list, source, installedAddonNames).filter((stream) => {
     const addonName = String(stream?.addonName || "");
     const isAddonStream = installedAddonNames.has(addonName);
