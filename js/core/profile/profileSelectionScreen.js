@@ -311,6 +311,8 @@ function categoryLabel(category) {
       return "Heróis";
     case "profissões":
       return "Profissões";
+    case "cotidiano":
+      return "Casual";
     default:
       return String(category || "Other").replace(/^./, (match) => match.toUpperCase());
   }
