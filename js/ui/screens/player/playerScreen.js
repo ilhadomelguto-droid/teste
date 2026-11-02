@@ -1376,22 +1376,6 @@ function episodeThumbnailUrl(episode = {}) {
   );
 }
 
-function formatBytes(value) {
-  const bytes = Number(value || 0);
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return "";
-  }
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let amount = bytes;
-  let unitIndex = 0;
-  while (amount >= 1024 && unitIndex < units.length - 1) {
-    amount /= 1024;
-    unitIndex += 1;
-  }
-  const precision = amount >= 10 || unitIndex === 0 ? 0 : 1;
-  return `${amount.toFixed(precision)} ${units[unitIndex]}`;
-}
-
 function normalizeStreamBadgeChipColor(value = "") {
   const hex = String(value || "")
     .trim()
@@ -1459,14 +1443,10 @@ function renderPlayerSourceBadges(
 ) {
   const matchedBadges = matchStreamBadges(stream, badgeSettings.rules);
   const chips = [];
-  const sizeBytes = stream.behaviorHints?.videoSize;
-  if (badgeSettings.showFileSizeBadges !== false && sizeBytes != null) {
-    const label = formatBytes(sizeBytes);
-    if (label) {
-      chips.push(
-        `<span class="stream-route-stream-badge size">${escapeHtml(t("streams_size", [label], `SIZE ${label}`))}</span>`
-      );
-    }
+  if (isStreamTvDirectSource(stream)) {
+    getStreamTvSourceSpecs(stream).forEach((label) => {
+      chips.push(`<span class="player-source-spec-chip">${escapeHtml(label)}</span>`);
+    });
   }
   matchedBadges.slice(0, 8).forEach((badge) => {
     const chip = renderPlayerImageBadgeChip(badge);
@@ -1477,6 +1457,41 @@ function renderPlayerSourceBadges(
   return chips.length
     ? `<div class="stream-route-card-badges player-source-badges" aria-label="${escapeHtml(t("settings_stream_badges_section", {}, "Fusion Style"))}">${chips.join("")}</div>`
     : "";
+}
+
+function isStreamTvDirectSource(stream = {}) {
+  return /streamtv/i.test(
+    [stream.name, stream.title, stream.description, stream.addonName, stream.addonId]
+      .filter(Boolean)
+      .join(" ")
+  );
+}
+
+function getStreamTvSourceSpecs(stream = {}) {
+  const text = [
+    stream.name,
+    stream.title,
+    stream.description,
+    stream.behaviorHints?.filename,
+    stream.mimeType,
+    stream.sourceType
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const specs = [];
+  const add = (label, expression) => {
+    if (expression.test(text) && !specs.includes(label)) specs.push(label);
+  };
+  add("4K", /\b(?:2160p|4k|uhd)\b/i);
+  add("1080p", /\b(?:1080p|fhd)\b/i);
+  add("720p", /\b720p\b/i);
+  add("BluRay", /\bblu[ -]?ray\b/i);
+  add("WEB-DL", /\bweb[ .-]?dl\b/i);
+  add("H.265", /\b(?:h[ .-]?265|hevc|x265)\b/i);
+  add("H.264", /\b(?:h[ .-]?264|avc|x264)\b/i);
+  add("5.1", /\b(?:5[. ]1|ddp?\s*5[. ]1)\b/i);
+  add("Dublado", /\b(?:dublado|dual audio|pt[ -]?br)\b/i);
+  return specs.length ? specs : ["Direto"];
 }
 
 function resolvePlayerSourceBadgePlacement(badgeSettings = StreamBadgeSettingsStore.snapshot()) {
@@ -2069,9 +2084,12 @@ export const PlayerScreen = {
     const containerPreference = normalizeStreamContainerPreference(
       PlayerSettingsStore.get().streamContainerPreference
     );
-    this.streamCandidates = filterStreamsByContainer(this.normalizeStreamCandidates(
-      Array.isArray(params.streamCandidates) ? params.streamCandidates : []
-    ), containerPreference);
+    this.streamCandidates = filterStreamsByContainer(
+      this.normalizeStreamCandidates(
+        Array.isArray(params.streamCandidates) ? params.streamCandidates : []
+      ),
+      containerPreference
+    );
     const preferredStreamId = String(params?.preferredStreamId || "").trim();
     const preferredStreamCandidate = preferredStreamId
       ? this.streamCandidates.find((stream) => String(stream?.id || "") === preferredStreamId) ||
@@ -10947,9 +10965,7 @@ export const PlayerScreen = {
           ? Number(PlayerController.getPlaybackReadyState() || 0)
           : Number(PlayerController.video?.readyState || 0);
       const videoIsActivelyPlaying = Boolean(
-        PlayerController.video &&
-          !PlayerController.video.paused &&
-          !PlayerController.video.ended
+        PlayerController.video && !PlayerController.video.paused && !PlayerController.video.ended
       );
       if (videoIsActivelyPlaying) {
         this.loadingVisible = false;
@@ -14336,16 +14352,16 @@ export const PlayerScreen = {
   getOrderedStreamCandidates() {
     return filterStreamsByContainer(
       (this.streamCandidates || [])
-      .map((stream, index) => ({ stream, index }))
-      .sort((left, right) => {
-        const leftOrder = Number(left.stream?.addonOrderIndex ?? Number.MAX_SAFE_INTEGER);
-        const rightOrder = Number(right.stream?.addonOrderIndex ?? Number.MAX_SAFE_INTEGER);
-        if (leftOrder !== rightOrder) {
-          return leftOrder - rightOrder;
-        }
-        return left.index - right.index;
-      })
-      .map((entry) => entry.stream),
+        .map((stream, index) => ({ stream, index }))
+        .sort((left, right) => {
+          const leftOrder = Number(left.stream?.addonOrderIndex ?? Number.MAX_SAFE_INTEGER);
+          const rightOrder = Number(right.stream?.addonOrderIndex ?? Number.MAX_SAFE_INTEGER);
+          if (leftOrder !== rightOrder) {
+            return leftOrder - rightOrder;
+          }
+          return left.index - right.index;
+        })
+        .map((entry) => entry.stream),
       PlayerSettingsStore.get().streamContainerPreference
     );
   },
@@ -14658,24 +14674,26 @@ export const PlayerScreen = {
                   const playingMarker = isCurrent
                     ? `<div class="player-source-playing">${escapeHtml(t("sources_playing", {}, "Playing"))}</div>`
                     : "";
-                  const sourceTitle = `<div class="player-source-title">${escapeHtml(stream.label || "Stream")}</div>`;
+                  const isStreamTv = isStreamTvDirectSource(stream);
+                  const sourceTitle = `<div class="player-source-title">${escapeHtml(isStreamTv ? "StreamTV" : stream.label || "Stream")}</div>`;
                   const mainTitle =
-                    !showAddonLogo && playingMarker
+                    !showAddonLogo && !isStreamTv && playingMarker
                       ? `<div class="player-source-title-row">${sourceTitle}${playingMarker}</div>`
                       : sourceTitle;
-                  const sourceSide = showAddonLogo
-                    ? `<div class="player-source-side">
-                  ${addonLogoUrl ? `<img class="player-source-logo" src="${escapeAttribute(addonLogoUrl)}" alt="" decoding="async" loading="lazy" referrerpolicy="no-referrer" />` : ""}
-                  <div class="player-source-addon">${escapeHtml(stream.addonName || t("nav_addons", {}, "Addon"))}</div>
+                  const sourceSide =
+                    showAddonLogo || isStreamTv
+                      ? `<div class="player-source-side">
+                  ${isStreamTv ? '<div class="player-source-streamtv-mark" aria-label="StreamTV">&#9654;</div>' : addonLogoUrl ? `<img class="player-source-logo" src="${escapeAttribute(addonLogoUrl)}" alt="" decoding="async" loading="lazy" referrerpolicy="no-referrer" />` : ""}
+                  <div class="player-source-addon">${escapeHtml(isStreamTv ? "StreamTV" : stream.addonName || t("nav_addons", {}, "Addon"))}</div>
                   ${playingMarker}
                 </div>`
-                    : "";
+                      : "";
                   return `
               <article class="player-source-card${sourceSide ? "" : " no-side"} focusable${focused ? " focused" : ""}${isCurrent ? " selected" : ""}" data-sources-zone="list" data-sources-index="${index}">
                 <div class="player-source-main">
                   ${topBadges}
                   ${mainTitle}
-                  <div class="player-source-desc">${escapeHtml(stream.description || stream.addonName || "")}</div>
+                  ${isStreamTv ? "" : `<div class="player-source-desc">${escapeHtml(stream.description || stream.addonName || "")}</div>`}
                   ${bottomBadges}
                 </div>
                 ${sourceSide}
@@ -15716,19 +15734,21 @@ export const PlayerScreen = {
                         this.scheduleSourceLogoRender()
                       )
                     : "";
-                  const sourceSide = showAddonLogo
-                    ? `<div class="player-source-side">
-                        ${addonLogoUrl ? `<img class="player-source-logo" src="${escapeAttribute(addonLogoUrl)}" alt="" decoding="async" loading="lazy" referrerpolicy="no-referrer" />` : ""}
-                        <div class="player-source-addon">${escapeHtml(stream.addonName || t("nav_addons", {}, "Addon"))}</div>
+                  const isStreamTv = isStreamTvDirectSource(stream);
+                  const sourceSide =
+                    showAddonLogo || isStreamTv
+                      ? `<div class="player-source-side">
+                        ${isStreamTv ? '<div class="player-source-streamtv-mark" aria-label="StreamTV">&#9654;</div>' : addonLogoUrl ? `<img class="player-source-logo" src="${escapeAttribute(addonLogoUrl)}" alt="" decoding="async" loading="lazy" referrerpolicy="no-referrer" />` : ""}
+                        <div class="player-source-addon">${escapeHtml(isStreamTv ? "StreamTV" : stream.addonName || t("nav_addons", {}, "Addon"))}</div>
                       </div>`
-                    : "";
+                      : "";
                   return `
                     <article class="player-source-card player-episode-stream-card${sourceSide ? "" : " no-side"} focusable${focused ? " focused" : ""}"
                              data-episode-stream-index="${index}">
                       <div class="player-source-main">
                         ${topBadges}
-                        <div class="player-source-title">${escapeHtml(stream.label || "Stream")}</div>
-                        <div class="player-source-desc">${escapeHtml(stream.description || stream.addonName || "")}</div>
+                        <div class="player-source-title">${escapeHtml(isStreamTv ? "StreamTV" : stream.label || "Stream")}</div>
+                        ${isStreamTv ? "" : `<div class="player-source-desc">${escapeHtml(stream.description || stream.addonName || "")}</div>`}
                         ${bottomBadges}
                       </div>
                       ${sourceSide}
